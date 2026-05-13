@@ -786,53 +786,8 @@ if st.session_state.pipeline_results:
             )
 
 else:
-    # ============= LANDING PAGE =============
-
-    st.markdown("### 👈 Select a scenario and click **RUN DEMO PIPELINE** to begin")
-    st.markdown("---")
-
-    scenario_meta = [
-        ("scenario_a", "card-report",    "🔴 REPORT"),
-        ("scenario_b", "card-not",       "🟢 NOT_REPORT"),
-        ("scenario_c", "card-conflict",  "🟠 CONFLICT"),
-        ("scenario_d", "card-conflict",  "👤 HUMAN DECISION"),
-    ]
-
-    col1, col2, col3, col4 = st.columns(4)
-    for col, (key, cls, outcome) in zip([col1, col2, col3, col4], scenario_meta):
-        s = CVE_SCENARIOS[key]
-        human_tag = " 👤" if s.get("human_review_required") else ""
-        with col:
-            st.markdown(f"""
-            <div class="scenario-card {cls}">
-                <strong>{s['name'].split(':')[0]}{human_tag}</strong><br>
-                <span style="font-size:0.85rem">{s['name'].split('—', 1)[1].strip() if '—' in s['name'] else (s['name'].split(':', 1)[1].strip() if ':' in s['name'] else '')}</span>
-            </div>
-            """, unsafe_allow_html=True)
-            st.caption(f"CVE: `{s['cve_id']}` | CVSS: **{s['cvss_score']}** ({s['severity']})")
-            st.caption(f"Outcome: **{outcome}**")
-            st.caption(s.get("decision_reason", "")[:120] + "…" if len(s.get("decision_reason","")) > 120 else s.get("decision_reason",""))
-
-    st.markdown("---")
-    st.markdown("### 📏 Decision Rules (Active)")
-    rules_df = pd.DataFrame([
-        {"ID": r["rule_id"], "Rule": r["name"], "Action": r["action"],
-         "Auto-decide": "✅" if r["auto_decidable"] else "❌ Human needed"}
-        for r in DECISION_RULES
-    ])
-    st.dataframe(rules_df, use_container_width=True, hide_index=True)
-
-    st.markdown("---")
-    st.markdown("### 🏭 J-TEC Products in Scope")
-    prod_rows = []
-    for pname, p in PRODUCTS.items():
-        prod_rows.append({
-            "Product": pname,
-            "Type": p["type"],
-            "Version": p["version"],
-            "SBOM Components": len(p["sbom"]["components"])
-        })
-    st.dataframe(pd.DataFrame(prod_rows), use_container_width=True, hide_index=True)
+    st.info("👈 Select a scenario from the sidebar and click **RUN DEMO PIPELINE** to begin.")
+    st.markdown("View all scenarios, decision rules, and session history on the **📚 History** page (left sidebar).")
 
 # ============= FOOTER =============
 
