@@ -124,14 +124,86 @@ if "pipeline_results" not in st.session_state:
     st.session_state.pipeline_results = None
 
 if "runs_log" not in st.session_state:
-    st.session_state.runs_log = []   # list of {scenario, decision, ts}
+    st.session_state.runs_log = []
+
+# For the interactive human-review flow (Scenario D)
+if "pipeline_phase" not in st.session_state:
+    st.session_state.pipeline_phase = "idle"   # idle | awaiting_human | complete
+
+if "pre_review" not in st.session_state:
+    st.session_state.pre_review = None   # stores stages 1-4 results for scenario_d
 
 # ============= HELPER FUNCTIONS =============
 
-def run_pipeline(scenario_key, product_name):
+def run_stages_1_to_4(scenario_key, product_name):
+    """Run stages 1-4 and return intermediate results (used for Scenario D pause)."""
     engine = st.session_state.engine
     engine.reset_audit_trail()
+    scenario = CVE_SCENARIOS[scenario_key]
+    cve_id = scenario["cve_id"]
 
+    with st.spinner("⏳ Stage 1: Ingesting CVE from NVD..."):
+        cve = engine.ingest_cve(cve_id, scenario_key)
+        st.success(f"✅ Stage 1: CVE {cve_id} ingested")
+
+    with st.spinner("⏳ Stage 2: Matching against SBOM..."):
+        sbom_match = engine.match_sbom(cve, product_name)
+        st.success(f"✅ Stage 2: {sbom_match['match_reason']}")
+
+    with st.spinner("⏳ Stage 3: Detecting conflicts..."):
+        conflict_info = engine.detect_conflicts(cve, sbom_match, scenario_key)
+        if conflict_info["conflict_detected"]:
+            st.warning(f"⚠️ Stage 3: Conflict ({conflict_info['conflict_type']})")
+        else:
+            st.success("✅ Stage 3: No conflicts")
+
+    with st.spinner("⏳ Stage 4: Applying decision rules..."):
+        decision_proposal = engine.propose_decision(cve, sbom_match, conflict_info, scenario_key)
+        st.success(f"✅ Stage 4: Decision proposed ({decision_proposal['decision_type']}) — confidence {decision_proposal['confidence_score']:.0%}")
+
+    return {
+        "scenario_key": scenario_key,
+        "scenario_name": scenario["name"],
+        "product_name": product_name,
+        "cve": cve,
+        "sbom_match": sbom_match,
+        "conflict_info": conflict_info,
+        "decision_proposal": decision_proposal,
+        "partial_audit_trail": engine.get_audit_trail()
+    }
+
+
+def complete_pipeline(pre, reviewer_name, reviewer_action, override_decision, notes):
+    """Complete stages 5-6 after human review (Scenario D)."""
+    engine = st.session_state.engine
+    scenario = CVE_SCENARIOS[pre["scenario_key"]]
+
+    review_result = engine.human_review(pre["decision_proposal"], reviewer_action)
+    review_result["reviewer"] = reviewer_name or "Compliance Officer"
+    review_result["justification"] = notes or review_result["justification"]
+    if override_decision:
+        review_result["final_decision_type"] = override_decision
+
+    enisa_result = engine.enisa_submit(review_result, pre["cve"], pre["product_name"])
+
+    results = {**pre,
+               "review_result": review_result,
+               "enisa_result": enisa_result,
+               "audit_trail": engine.get_audit_trail()}
+
+    st.session_state.runs_log.append({
+        "scenario": pre["scenario_name"].split(":")[0],
+        "decision": review_result["final_decision_type"],
+        "product": pre["product_name"],
+        "ts": datetime.now().strftime("%H:%M:%S")
+    })
+    return results
+
+
+def run_pipeline(scenario_key, product_name):
+    """Full auto pipeline (scenarios A/B/C)."""
+    engine = st.session_state.engine
+    engine.reset_audit_trail()
     scenario = CVE_SCENARIOS[scenario_key]
     cve_id = scenario["cve_id"]
 
@@ -181,7 +253,6 @@ def run_pipeline(scenario_key, product_name):
         "product": product_name,
         "ts": datetime.now().strftime("%H:%M:%S")
     })
-
     return results
 
 
@@ -287,17 +358,19 @@ with st.sidebar:
     s = CVE_SCENARIOS[selected_scenario]
     exp_decision = s.get("expected_decision", "—")
     severity_color = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}.get(s["severity"], "⚪")
+    human_flag = "👤 **Human review required**" if s.get("human_review_required") else ""
     st.markdown(f"""
     > **CVE:** `{s['cve_id']}`
     > **Severity:** {severity_color} {s['severity']} (CVSS {s['cvss_score']})
     > **Expected:** `{exp_decision}`
+    {human_flag}
     """)
 
     st.markdown("---")
 
     st.header("🏭 J-TEC Product")
     product_names = list(PRODUCTS.keys())
-    default_idx = {"scenario_a": 1, "scenario_b": 0, "scenario_c": 2}.get(selected_scenario, 0)
+    default_idx = {"scenario_a": 1, "scenario_b": 0, "scenario_c": 2, "scenario_d": 2}.get(selected_scenario, 0)
     selected_product = st.selectbox("Product:", product_names, index=default_idx)
 
     # Product SBOM quick view
@@ -310,8 +383,19 @@ with st.sidebar:
 
     run_btn = st.button("🚀 RUN DEMO PIPELINE", use_container_width=True, type="primary")
     if run_btn:
-        st.session_state.pipeline_results = run_pipeline(selected_scenario, selected_product)
-        st.session_state.current_scenario = selected_scenario
+        # Reset any previous human-review state
+        st.session_state.pipeline_phase = "idle"
+        st.session_state.pre_review = None
+        st.session_state.pipeline_results = None
+
+        if CVE_SCENARIOS[selected_scenario].get("human_review_required"):
+            st.session_state.pre_review = run_stages_1_to_4(selected_scenario, selected_product)
+            st.session_state.pipeline_phase = "awaiting_human"
+            st.session_state.current_scenario = selected_scenario
+        else:
+            st.session_state.pipeline_results = run_pipeline(selected_scenario, selected_product)
+            st.session_state.pipeline_phase = "complete"
+            st.session_state.current_scenario = selected_scenario
 
     # Session stats
     if st.session_state.runs_log:
@@ -329,6 +413,124 @@ with st.sidebar:
                 st.caption(f"`{r['ts']}` {r['scenario']} → **{r['decision']}**")
 
 # ============= MAIN CONTENT =============
+
+# ============= INTERACTIVE HUMAN REVIEW (Scenario D) =============
+
+if st.session_state.pipeline_phase == "awaiting_human" and st.session_state.pre_review:
+    pre = st.session_state.pre_review
+    proposal = pre["decision_proposal"]
+
+    st.warning("⏸️ **Pipeline paused at Stage 5 — Compliance Officer review required**")
+
+    # Progress stepper — stopped at stage 4
+    st.markdown("#### Pipeline Stages")
+    pipeline_stepper(completed=4)
+    st.markdown("---")
+
+    # Summary metrics
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("CVE", pre["cve"]["cve_id"])
+    col2.metric("CVSS Score", pre["cve"]["cvss_score"])
+    col3.metric("Severity", pre["cve"]["severity"])
+    col4.metric("System Confidence", f"{proposal['confidence_score']:.0%}", delta="⚠️ Below 80% threshold")
+
+    # Evidence panel
+    st.markdown("---")
+    st.subheader("📋 Evidence for Review")
+    ev_col, gauge_col = st.columns([2, 1])
+
+    with ev_col:
+        with st.container(border=True):
+            st.markdown("**Why the system cannot auto-decide:**")
+            for rule in proposal["rules_fired"]:
+                if rule["triggered"]:
+                    st.markdown(f"- **{rule['rule']}**")
+                    st.caption(rule["reasoning"])
+
+        st.markdown("**Evidence Sources:**")
+        for ev in pre["conflict_info"]["evidence_summary"]:
+            st.markdown(f"- {ev}")
+
+    with gauge_col:
+        st.plotly_chart(cvss_gauge(pre["cve"]["cvss_score"]), use_container_width=True)
+
+    # SBOM table
+    match = pre["sbom_match"]
+    st.markdown("**SBOM Component Analysis:**")
+    df = sbom_table(pre["product_name"], match.get("matching_component"), match["match_found"])
+    st.dataframe(
+        df.style.apply(
+            lambda row: ["background-color: #fff5f5" if "VULNERABLE" in str(row["Status"]) else "" for _ in row],
+            axis=1
+        ),
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # ---- Human review form ----
+    st.markdown("---")
+    st.subheader("👤 Stage 5: Compliance Officer Review")
+    st.markdown(
+        "The automated system has flagged this case for human review. "
+        "Review the evidence above and submit your decision below."
+    )
+
+    with st.form("human_review_form"):
+        reviewer_name = st.text_input("Reviewer Name / ID", placeholder="e.g. Tanaka-san, CO-042")
+
+        st.markdown("**Your Assessment:**")
+        notes = st.text_area(
+            "Justification / Notes",
+            placeholder=(
+                "e.g. Reviewed VEX statement and SBOM match. "
+                "The firewall mitigation is adequate for our deployment context — NOT_REPORT. "
+                "OR: Internal network exposure is unacceptable — REPORT to ENISA."
+            ),
+            height=110
+        )
+
+        st.markdown("**Select Decision:**")
+        decision_col1, decision_col2, decision_col3 = st.columns(3)
+        with decision_col1:
+            approve_report = st.form_submit_button(
+                "🔴 APPROVE — REPORT to ENISA",
+                use_container_width=True,
+                type="primary"
+            )
+        with decision_col2:
+            approve_not_report = st.form_submit_button(
+                "🟢 APPROVE — NOT_REPORT",
+                use_container_width=True
+            )
+        with decision_col3:
+            escalate = st.form_submit_button(
+                "⚠️ ESCALATE for Further Review",
+                use_container_width=True
+            )
+
+    if approve_report or approve_not_report or escalate:
+        if not reviewer_name.strip():
+            st.error("Please enter your name / reviewer ID before submitting.")
+        elif not notes.strip():
+            st.error("Please enter a justification before submitting.")
+        else:
+            if approve_report:
+                action, override = "APPROVE", "REPORT"
+                label = "REPORT"
+            elif approve_not_report:
+                action, override = "APPROVE", "NOT_REPORT"
+                label = "NOT_REPORT"
+            else:
+                action, override = "APPROVE", "CONFLICT"
+                label = "ESCALATED"
+
+            with st.spinner("⏳ Stage 5 & 6: Completing pipeline..."):
+                results = complete_pipeline(pre, reviewer_name, action, override, notes)
+
+            st.session_state.pipeline_results = results
+            st.session_state.pipeline_phase = "complete"
+            st.success(f"✅ Decision recorded: **{label}** by {reviewer_name}. Pipeline complete.")
+            st.rerun()
 
 if st.session_state.pipeline_results:
     results = st.session_state.pipeline_results
@@ -589,26 +791,27 @@ else:
     st.markdown("### 👈 Select a scenario and click **RUN DEMO PIPELINE** to begin")
     st.markdown("---")
 
-    col1, col2, col3 = st.columns(3)
-
     scenario_meta = [
-        ("scenario_a", "card-report",    "🔴 REPORT",    "scenario_a"),
-        ("scenario_b", "card-not",       "🟢 NOT_REPORT","scenario_b"),
-        ("scenario_c", "card-conflict",  "🟠 CONFLICT",  "scenario_c"),
+        ("scenario_a", "card-report",    "🔴 REPORT"),
+        ("scenario_b", "card-not",       "🟢 NOT_REPORT"),
+        ("scenario_c", "card-conflict",  "🟠 CONFLICT"),
+        ("scenario_d", "card-conflict",  "👤 HUMAN DECISION"),
     ]
 
-    for col, (key, cls, outcome, _) in zip([col1, col2, col3], scenario_meta):
+    col1, col2, col3, col4 = st.columns(4)
+    for col, (key, cls, outcome) in zip([col1, col2, col3, col4], scenario_meta):
         s = CVE_SCENARIOS[key]
+        human_tag = " 👤" if s.get("human_review_required") else ""
         with col:
             st.markdown(f"""
             <div class="scenario-card {cls}">
-                <strong>{s['name'].split(':')[0]}</strong><br>
-                <span style="font-size:0.85rem">{s['name'].split(':', 1)[1].strip() if ':' in s['name'] else ''}</span>
+                <strong>{s['name'].split(':')[0]}{human_tag}</strong><br>
+                <span style="font-size:0.85rem">{s['name'].split('—', 1)[1].strip() if '—' in s['name'] else (s['name'].split(':', 1)[1].strip() if ':' in s['name'] else '')}</span>
             </div>
             """, unsafe_allow_html=True)
             st.caption(f"CVE: `{s['cve_id']}` | CVSS: **{s['cvss_score']}** ({s['severity']})")
-            st.caption(f"Expected outcome: **{outcome}**")
-            st.caption(s.get("decision_reason", ""))
+            st.caption(f"Outcome: **{outcome}**")
+            st.caption(s.get("decision_reason", "")[:120] + "…" if len(s.get("decision_reason","")) > 120 else s.get("decision_reason",""))
 
     st.markdown("---")
     st.markdown("### 📏 Decision Rules (Active)")

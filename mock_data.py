@@ -165,6 +165,34 @@ CVE_SCENARIOS = {
         "vex_justification": "Our deployment uses HTTP/1.1 only, disabling HTTP/2 entirely. DoS vector does not apply.",
         "expected_decision": "NOT_REPORT (after VEX review)",
         "decision_reason": "VEX provides accepted mitigation. Despite vulnerability, our specific configuration prevents exploitation."
+    },
+
+    "scenario_d": {
+        "name": "Scenario D: Ambiguous Evidence — Human Decision Required",
+        "cve_id": "CVE-2026-0004",
+        "cve_description": "Memory corruption in libssl 1.1.0–1.1.2 via malformed TLS ClientHello. No public PoC exploit confirmed. Theoretical remote code execution under specific conditions.",
+        "severity": "MEDIUM",
+        "cvss_score": 6.8,
+        "affected_versions": {
+            "library": "libssl",
+            "range_start": "1.1.0",
+            "range_end": "1.1.2"
+        },
+        "exploit_available": False,
+        "affected_product": "Model 137T",
+        "matching_component": "libssl 1.1.1",
+        "vex_arrives": True,
+        "vex_statement": "AFFECTED — libssl 1.1.1 is within the affected range (1.1.0–1.1.2).",
+        "vex_justification": "Perimeter firewall rules restrict inbound TLS connections from untrusted networks. Risk is reduced but not fully eliminated — internal network exposure remains.",
+        "expected_decision": "HUMAN DECISION REQUIRED",
+        "decision_reason": (
+            "CVSS 6.8 is below the HIGH threshold (7.0) — Rule R2 does not auto-trigger. "
+            "Component IS in the affected range. No confirmed exploit. "
+            "VEX mitigation is partial (firewall only). "
+            "System confidence is 0.65 — below the 0.80 auto-decide threshold. "
+            "A Compliance Officer must review and decide."
+        ),
+        "human_review_required": True
     }
 }
 
@@ -211,6 +239,14 @@ DECISION_RULES = [
         "action": "CONFLICT",
         "auto_decidable": False,  # Requires human review
         "confidence_boost": 0.0
+    },
+    {
+        "rule_id": "R6",
+        "name": "Ambiguous — Medium Severity + Partial Mitigation",
+        "condition": "cvss_score >= 5.0 AND cvss_score < 7.0 AND component_affected == True AND exploit_available == False",
+        "action": "HUMAN_REVIEW",
+        "auto_decidable": False,
+        "confidence_boost": 0.65
     }
 ]
 

@@ -111,6 +111,16 @@ class DecisionEngine:
                 f"VEX: ARRIVED - States component IS AFFECTED but claims mitigation exists"
             ]
             self._log_action("CONFLICT_DETECTED", "Evidence conflict: SBOM vs VEX statement")
+        elif scenario_key == "scenario_d" and scenario.get("vex_arrives"):
+            conflict_result["evidence_summary"] = [
+                f"SBOM: Component FOUND ({sbom_match['matching_component']} {sbom_match['component_version']})",
+                f"CVE: Affects {cve['affected_versions']['library']} {cve['affected_versions']['range_start']}-{cve['affected_versions']['range_end']}",
+                f"SBOM Match: {sbom_match['match_reason']}",
+                f"VEX Statement: {scenario.get('vex_statement', '')}",
+                f"VEX Mitigation: {scenario.get('vex_justification', '')}",
+                "⚠️ Mitigation strength: PARTIAL — firewall reduces but does not eliminate risk"
+            ]
+            self._log_action("EVIDENCE_AMBIGUOUS", "Partial VEX mitigation present; human review flagged")
         else:
             conflict_result["evidence_summary"] = [
                 f"SBOM: {sbom_match['matching_component'] if sbom_match['matching_component'] else 'Component NOT found'}",
@@ -173,6 +183,26 @@ class DecisionEngine:
             decision_proposal["confidence_score"] = 0.95
             decision_proposal["auto_decidable"] = True
         
+        # Rule 6: Medium severity + component affected + no exploit = ambiguous, human required
+        if (decision_proposal["decision_type"] is None
+                and sbom_match["match_found"]
+                and not cve.get("exploit_available")
+                and cve["cvss_score"] >= self.thresholds["medium_severity"]):
+            decision_proposal["rules_fired"].append({
+                "rule": "R6: Ambiguous — Medium Severity + Partial Mitigation",
+                "triggered": True,
+                "reasoning": (
+                    f"CVSS {cve['cvss_score']} is below HIGH threshold ({self.thresholds['high_severity']}). "
+                    f"Component IS in affected range but no confirmed exploit. "
+                    f"Partial VEX mitigation present. Confidence 0.65 < auto-decide threshold "
+                    f"({self.thresholds['auto_decide_confidence']}). Human review required."
+                )
+            })
+            decision_proposal["decision_type"] = "REPORT"
+            decision_proposal["confidence_score"] = 0.65
+            decision_proposal["auto_decidable"] = False
+            decision_proposal["decision_maker_type"] = "HUMAN"
+
         # Rule 5: Conflict Detected
         if conflict_info["conflict_detected"]:
             decision_proposal["rules_fired"].append({
