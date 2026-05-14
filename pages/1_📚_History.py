@@ -4,9 +4,9 @@ History & Scenario Reference — CRA Decision Traceability System
 
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 
 from mock_data import CVE_SCENARIOS, PRODUCTS, DECISION_RULES
+from translations import t, SCENARIO_JA
 
 st.set_page_config(
     page_title="History & Scenarios — CRA System",
@@ -14,101 +14,115 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("📚 Scenario Reference & Run History")
-st.markdown("**Overview of all demo scenarios, decision rules, and decisions made this session.**")
+# Inherit language from session state (shared across pages)
+if "lang" not in st.session_state:
+    st.session_state.lang = "en"
+
+# ---- Language toggle (mirrored here so user can switch on this page too) ----
+lc1, lc2, _ = st.columns([1, 1, 6])
+with lc1:
+    if st.button("🇺🇸 English", use_container_width=True,
+                 type="primary" if st.session_state.lang == "en" else "secondary"):
+        st.session_state.lang = "en"
+        st.rerun()
+with lc2:
+    if st.button("🇯🇵 日本語", use_container_width=True,
+                 type="primary" if st.session_state.lang == "ja" else "secondary"):
+        st.session_state.lang = "ja"
+        st.rerun()
+
+st.title(f"📚 {t('hist_title')}")
+st.markdown(t("hist_subtitle"))
 st.markdown("---")
 
-# ============= SCENARIO REFERENCE CARDS =============
+# ============= SCENARIO CARDS =============
 
-st.subheader("🗂️ Demo Scenarios")
+st.subheader(t("hist_scenarios"))
 
 card_styles = {
-    "scenario_a": ("border-left: 5px solid #ff4b4b; background:#fff5f5;", "🔴 REPORT"),
-    "scenario_b": ("border-left: 5px solid #21c354; background:#f0fff4;", "🟢 NOT_REPORT"),
-    "scenario_c": ("border-left: 5px solid #ffa500; background:#fff8ec;", "🟠 CONFLICT"),
-    "scenario_d": ("border-left: 5px solid #7c3aed; background:#f5f3ff;", "👤 HUMAN DECISION"),
+    "scenario_a": ("border-left:5px solid #ff4b4b; background:#fff5f5;", "outcome_report"),
+    "scenario_b": ("border-left:5px solid #21c354; background:#f0fff4;", "outcome_not_report"),
+    "scenario_c": ("border-left:5px solid #ffa500; background:#fff8ec;", "outcome_conflict"),
+    "scenario_d": ("border-left:5px solid #7c3aed; background:#f5f3ff;", "outcome_human"),
 }
 
 cols = st.columns(4)
-for col, (key, (style, outcome)) in zip(cols, card_styles.items()):
+for col, (key, (style, outcome_key)) in zip(cols, card_styles.items()):
     s = CVE_SCENARIOS[key]
     severity_icon = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}.get(s["severity"], "⚪")
-    human_tag = " &nbsp;<span style='background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:10px;font-size:0.7rem'>Human</span>" if s.get("human_review_required") else ""
-    name_short = s["name"].split(":")[0].split("—")[0].strip()
-    subtitle = (s["name"].split("—", 1)[1].strip() if "—" in s["name"]
-                else s["name"].split(":", 1)[1].strip() if ":" in s["name"] else "")
+    name_label = t(f"scenario_{key}_name")
+    outcome_label = t(outcome_key)
+    human_badge = " &nbsp;<span style='background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:10px;font-size:0.7rem'>👤</span>" if s.get("human_review_required") else ""
 
     with col:
         st.markdown(f"""
         <div style="border-radius:10px; padding:14px 16px; margin-bottom:6px; {style}">
-            <div style="font-weight:700; font-size:1rem">{name_short}{human_tag}</div>
-            <div style="font-size:0.82rem; margin-top:4px; color:#444">{subtitle}</div>
+            <div style="font-weight:700; font-size:0.95rem">{name_label}{human_badge}</div>
         </div>
         """, unsafe_allow_html=True)
 
         st.caption(f"`{s['cve_id']}` | {severity_icon} {s['severity']} · CVSS **{s['cvss_score']}**")
-        st.caption(f"Outcome: **{outcome}**")
+        st.caption(f"{t('outcome_label')} **{outcome_label}**")
 
-        reason = s.get("decision_reason", "")
+        # Decision reason (translated if Japanese)
+        reason = (SCENARIO_JA.get(key, {}).get("decision_reason") if st.session_state.lang == "ja"
+                  else s.get("decision_reason", ""))
         if isinstance(reason, str) and reason:
-            with st.expander("Why?"):
+            with st.expander(t("hist_why")):
                 st.caption(reason)
 
 st.markdown("---")
 
 # ============= SESSION RUN HISTORY =============
 
-st.subheader("🕓 Session Run History")
+st.subheader(t("hist_run_header"))
 
 runs = st.session_state.get("runs_log", [])
 
 if not runs:
-    st.info("No scenarios have been run yet in this session. Go to the **Pipeline** page and run a scenario.")
+    st.info(t("hist_no_runs"))
 else:
-    decision_icon = {"REPORT": "🔴", "NOT_REPORT": "🟢", "CONFLICT": "🟠", "ESCALATED": "⚠️"}
-
     run_df = pd.DataFrame([
         {
-            "Time": r["ts"],
-            "Scenario": r["scenario"],
-            "Product": r["product"],
-            "Decision": r["decision"],
+            t("hist_time"): r["ts"],
+            t("hist_scenario"): r["scenario"],
+            t("hist_product"): r["product"],
+            t("hist_decision"): r["decision"],
         }
         for r in reversed(runs)
     ])
 
-    # Styled dataframe
+    decision_col = t("hist_decision")
+
     def color_decision(val):
         colors = {"REPORT": "#fff5f5", "NOT_REPORT": "#f0fff4", "CONFLICT": "#fff8ec", "ESCALATED": "#fdf4ff"}
         return f"background-color: {colors.get(val, '')}"
 
     st.dataframe(
-        run_df.style.applymap(color_decision, subset=["Decision"]),
-        use_container_width=True,
-        hide_index=True
+        run_df.style.applymap(color_decision, subset=[decision_col]),
+        use_container_width=True, hide_index=True
     )
 
-    # Summary stats
-    st.markdown("**Session Summary**")
+    st.markdown(t("hist_summary"))
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Runs", len(runs))
-    c2.metric("REPORT", sum(1 for r in runs if r["decision"] == "REPORT"))
-    c3.metric("NOT_REPORT", sum(1 for r in runs if r["decision"] == "NOT_REPORT"))
-    c4.metric("Human / Escalated", sum(1 for r in runs if r["decision"] in ("CONFLICT", "ESCALATED")))
+    c1.metric(t("hist_total"), len(runs))
+    c2.metric(t("hist_report"), sum(1 for r in runs if r["decision"] == "REPORT"))
+    c3.metric(t("hist_not_report"), sum(1 for r in runs if r["decision"] == "NOT_REPORT"))
+    c4.metric(t("hist_human"), sum(1 for r in runs if r["decision"] in ("CONFLICT", "ESCALATED")))
 
 st.markdown("---")
 
-# ============= DECISION RULES REFERENCE =============
+# ============= DECISION RULES =============
 
-st.subheader("📏 Decision Rules Engine")
+st.subheader(t("hist_rules"))
 rules_df = pd.DataFrame([
     {
-        "ID": r["rule_id"],
-        "Rule Name": r["name"],
-        "Condition": r["condition"],
-        "Action": r["action"],
-        "Auto-decide": "✅ Yes" if r["auto_decidable"] else "❌ Human needed",
-        "Confidence": f"{r['confidence_boost']:.0%}"
+        t("hist_rule_id"): r["rule_id"],
+        t("hist_rule_name"): r["name"],
+        t("hist_rule_condition"): r["condition"],
+        t("hist_rule_action"): r["action"],
+        t("hist_rule_auto"): t("hist_rule_yes") if r["auto_decidable"] else t("hist_rule_no"),
+        t("hist_rule_conf"): f"{r['confidence_boost']:.0%}",
     }
     for r in DECISION_RULES
 ])
@@ -118,12 +132,17 @@ st.markdown("---")
 
 # ============= PRODUCTS IN SCOPE =============
 
-st.subheader("🏭 J-TEC Products in Scope")
+st.subheader(t("hist_products"))
 for pname, p in PRODUCTS.items():
     with st.expander(f"**{pname}** — {p['type']} (v{p['version']})"):
         st.caption(p["description"])
         comp_df = pd.DataFrame([
-            {"Component": c["name"], "Version": c["version"], "Vendor": c["vendor"], "Type": c["type"].capitalize()}
+            {
+                t("hist_comp"): c["name"],
+                t("hist_version"): c["version"],
+                t("hist_vendor"): c["vendor"],
+                t("hist_type"): c["type"].capitalize(),
+            }
             for c in p["sbom"]["components"]
         ])
         st.dataframe(comp_df, use_container_width=True, hide_index=True)
