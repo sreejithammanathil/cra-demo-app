@@ -252,9 +252,7 @@ with st.sidebar:
             st.rerun()
         st.markdown("---")
 
-    # Page navigation links
-    st.page_link("pages/1_History.py", label="📚 " + ("履歴" if ja else "History"), use_container_width=True)
-    st.page_link("pages/2_Scenarios.py", label="📖 " + ("解説" if ja else "Scenarios"), use_container_width=True)
+    st.caption("📚 " + ("上の「History」「Scenarios」から各ページへ" if ja else "Use the page list above to open History & Scenarios"))
 
 # ============= MAIN AREA =============
 
