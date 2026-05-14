@@ -252,14 +252,9 @@ with st.sidebar:
             st.rerun()
         st.markdown("---")
 
-    # Page navigation buttons
-    nav1, nav2 = st.columns(2)
-    with nav1:
-        if st.button("📚 " + ("履歴" if ja else "History"), use_container_width=True):
-            st.switch_page("pages/1_History.py")
-    with nav2:
-        if st.button("📖 " + ("解説" if ja else "Scenarios"), use_container_width=True):
-            st.switch_page("pages/2_Scenarios.py")
+    # Page navigation links
+    st.page_link("pages/1_History.py", label="📚 " + ("履歴" if ja else "History"), use_container_width=True)
+    st.page_link("pages/2_Scenarios.py", label="📖 " + ("解説" if ja else "Scenarios"), use_container_width=True)
 
 # ============= MAIN AREA =============
 
