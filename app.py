@@ -241,8 +241,25 @@ with st.sidebar:
                 st.caption(f"`{r['ts']}` {r['scenario']} → **{r['decision']}**")
 
     st.markdown("---")
-    st.caption("📚 History · 📖 Scenarios" if not ja else "📚 履歴 · 📖 シナリオ解説")
-    st.caption("← " + ("上のメニューから各ページへ移動" if ja else "Use the pages above to navigate"))
+
+    # Home button — visible only when a pipeline is active
+    if st.session_state.pipeline_phase != "idle":
+        if st.button("🏠 " + ("ダッシュボードへ戻る" if ja else "Back to Dashboard"),
+                     use_container_width=True, type="secondary"):
+            st.session_state.pipeline_phase = "idle"
+            st.session_state.pipeline_results = None
+            st.session_state.pre_review = None
+            st.rerun()
+        st.markdown("---")
+
+    # Page navigation buttons
+    nav1, nav2 = st.columns(2)
+    with nav1:
+        if st.button("📚 " + ("履歴" if ja else "History"), use_container_width=True):
+            st.switch_page("pages/1_📚_History.py")
+    with nav2:
+        if st.button("📖 " + ("解説" if ja else "Scenarios"), use_container_width=True):
+            st.switch_page("pages/2_📖_Scenarios.py")
 
 # ============= MAIN AREA =============
 
@@ -256,13 +273,6 @@ if st.session_state.pipeline_phase == "awaiting_human" and st.session_state.pre_
     pre = st.session_state.pre_review
     proposal = pre["decision_proposal"]
 
-    home_col, _ = st.columns([1, 5])
-    with home_col:
-        if st.button("🏠 " + ("ダッシュボードへ戻る" if ja else "Back to Dashboard"), use_container_width=True):
-            st.session_state.pipeline_phase = "idle"
-            st.session_state.pipeline_results = None
-            st.session_state.pre_review = None
-            st.rerun()
     st.warning(t("hr_paused"))
     st.markdown(t("section_pipeline")); pipeline_stepper(completed=4); st.markdown("---")
 
@@ -312,14 +322,6 @@ if st.session_state.pipeline_phase == "awaiting_human" and st.session_state.pre_
 elif st.session_state.pipeline_results:
     results = st.session_state.pipeline_results
     final = results["review_result"]["final_decision_type"]
-
-    home_col, _ = st.columns([1, 5])
-    with home_col:
-        if st.button("🏠 " + ("ダッシュボードへ戻る" if ja else "Back to Dashboard"), use_container_width=True):
-            st.session_state.pipeline_phase = "idle"
-            st.session_state.pipeline_results = None
-            st.session_state.pre_review = None
-            st.rerun()
     st.markdown(f"{t('section_decision_banner')} {decision_badge(final)}", unsafe_allow_html=True)
 
     col1,col2,col3,col4,col5=st.columns(5)
