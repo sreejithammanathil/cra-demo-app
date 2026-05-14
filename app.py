@@ -195,6 +195,15 @@ with st.sidebar:
     human_flag = t("sidebar_human_flag") if s.get("human_review_required") else ""
     st.markdown(f"> **CVE:** `{s['cve_id']}`\n> **{t('metric_severity')}:** {sev_icon} {s['severity']} (CVSS {s['cvss_score']})\n{human_flag}")
 
+    _sideinfo = {
+        "scenario_a": ("Tests: critical exploit present → auto REPORT", "テスト: 重大エクスプロイト → 自動報告"),
+        "scenario_b": ("Tests: component absent in SBOM → NOT REPORT", "テスト: SBOMに未存在 → 報告不要"),
+        "scenario_c": ("Tests: VEX conflict → human escalation", "テスト: VEX矛盾 → 人的エスカレーション"),
+        "scenario_d": ("Tests: ambiguous medium CVE → you decide", "テスト: 曖昧な中程度CVE → あなたが判断"),
+    }
+    en_note, ja_note = _sideinfo.get(selected_scenario, ("", ""))
+    st.caption("ℹ️ " + (ja_note if ja else en_note))
+
     st.markdown("---")
     st.header(t("sidebar_product_header"))
     product_names = list(PRODUCTS.keys())
@@ -247,6 +256,13 @@ if st.session_state.pipeline_phase == "awaiting_human" and st.session_state.pre_
     pre = st.session_state.pre_review
     proposal = pre["decision_proposal"]
 
+    home_col, _ = st.columns([1, 5])
+    with home_col:
+        if st.button("🏠 " + ("ダッシュボードへ戻る" if ja else "Back to Dashboard"), use_container_width=True):
+            st.session_state.pipeline_phase = "idle"
+            st.session_state.pipeline_results = None
+            st.session_state.pre_review = None
+            st.rerun()
     st.warning(t("hr_paused"))
     st.markdown(t("section_pipeline")); pipeline_stepper(completed=4); st.markdown("---")
 
@@ -296,6 +312,14 @@ if st.session_state.pipeline_phase == "awaiting_human" and st.session_state.pre_
 elif st.session_state.pipeline_results:
     results = st.session_state.pipeline_results
     final = results["review_result"]["final_decision_type"]
+
+    home_col, _ = st.columns([1, 5])
+    with home_col:
+        if st.button("🏠 " + ("ダッシュボードへ戻る" if ja else "Back to Dashboard"), use_container_width=True):
+            st.session_state.pipeline_phase = "idle"
+            st.session_state.pipeline_results = None
+            st.session_state.pre_review = None
+            st.rerun()
     st.markdown(f"{t('section_decision_banner')} {decision_badge(final)}", unsafe_allow_html=True)
 
     col1,col2,col3,col4,col5=st.columns(5)
@@ -404,6 +428,85 @@ elif st.session_state.pipeline_results:
             st.markdown(f'`{row["timestamp"].strftime("%H:%M:%S")}` &nbsp; <span class="audit-badge {badge_cls}">{action}</span> &nbsp; {row.get("details","")}',unsafe_allow_html=True)
 
     st.markdown("---")
+
+# ---- Scenario Quick Reference (shown when no pipeline active) ----
+if st.session_state.pipeline_phase == "idle":
+    _SCEN_INFO = {
+        "scenario_a": {
+            "color": "#ff4b4b", "bg": "#fff5f5", "icon": "🔴",
+            "en": {
+                "title": "Scenario A — REPORT Required",
+                "condition": "CVSS 9.8 CRITICAL · Exploit available · Component matched in SBOM",
+                "what": "A critical known-exploited vulnerability is found in an active product component. All reporting thresholds are exceeded.",
+                "outcome": "Automatic REPORT to ENISA within 24h (Article 14 obligation triggered)",
+            },
+            "ja": {
+                "title": "シナリオ A — 報告義務あり",
+                "condition": "CVSS 9.8 クリティカル · エクスプロイトあり · SBOMコンポーネント一致",
+                "what": "既知の悪用済み重大脆弱性が製品コンポーネントで検出。報告閾値をすべて超過。",
+                "outcome": "24時間以内にENISAへ自動報告（第14条義務発動）",
+            },
+        },
+        "scenario_b": {
+            "color": "#21c354", "bg": "#f0fff4", "icon": "🟢",
+            "en": {
+                "title": "Scenario B — NOT REPORT",
+                "condition": "CVSS 7.5 HIGH · No exploit · Component NOT in SBOM",
+                "what": "A high-severity CVE is found but the affected component is not present in this product's SBOM. No actual exposure.",
+                "outcome": "No reporting required — vulnerability does not affect this product",
+            },
+            "ja": {
+                "title": "シナリオ B — 報告不要",
+                "condition": "CVSS 7.5 HIGH · エクスプロイトなし · SBOMに該当コンポーネントなし",
+                "what": "高深刻度CVEが存在するが、対象コンポーネントはこの製品のSBOMに含まれない。実際の影響なし。",
+                "outcome": "報告不要 — この製品に対して脆弱性の影響なし",
+            },
+        },
+        "scenario_c": {
+            "color": "#ffa500", "bg": "#fff8ec", "icon": "🟠",
+            "en": {
+                "title": "Scenario C — Conflicting Evidence",
+                "condition": "CVSS 8.1 HIGH · VEX 'not_affected' claim · But component matched",
+                "what": "A VEX statement claims the product is not affected, but SBOM matching shows the component is present. Conflicting signals.",
+                "outcome": "Conflict flagged → Human review escalation (confidence too low for auto-decision)",
+            },
+            "ja": {
+                "title": "シナリオ C — 証拠の矛盾",
+                "condition": "CVSS 8.1 HIGH · VEX「影響なし」 · SBOMコンポーネント一致",
+                "what": "VEXは影響なしと主張するが、SBOMマッチングでコンポーネントが存在することが判明。シグナルが矛盾。",
+                "outcome": "矛盾検出 → 人的レビューへエスカレーション",
+            },
+        },
+        "scenario_d": {
+            "color": "#7c3aed", "bg": "#f5f3ff", "icon": "👤",
+            "en": {
+                "title": "Scenario D — Human Decision Required",
+                "condition": "CVSS 6.8 MEDIUM · No exploit · Partial VEX mitigation only",
+                "what": "Ambiguous case: moderate CVSS, no active exploit, VEX shows partial firewall mitigation but component is present. Rule R6 fires.",
+                "outcome": "Human review panel activates — you make the compliance decision",
+            },
+            "ja": {
+                "title": "シナリオ D — 人的判断が必要",
+                "condition": "CVSS 6.8 MEDIUM · エクスプロイトなし · VEX部分的緩和のみ",
+                "what": "曖昧なケース：中程度のCVSS、悪用なし、VEXはFW緩和を示すがコンポーネントは存在。ルールR6が発動。",
+                "outcome": "人的レビューパネルが起動 — あなたがコンプライアンス判断を行う",
+            },
+        },
+    }
+
+    with st.expander("📖 " + ("シナリオ早見表 — 実行前にご確認ください" if ja else "Scenario Quick Reference — What each scenario tests"), expanded=False):
+        sc1, sc2, sc3, sc4 = st.columns(4)
+        for col, (sk, info) in zip([sc1, sc2, sc3, sc4], _SCEN_INFO.items()):
+            lang_key = "ja" if ja else "en"
+            d = info[lang_key]
+            with col:
+                st.markdown(f"""<div style="border-radius:10px;padding:14px;border-left:5px solid {info['color']};background:{info['bg']};height:100%">
+                    <div style="font-weight:800;font-size:0.88rem;margin-bottom:6px">{info['icon']} {d['title']}</div>
+                    <div style="font-size:0.74rem;color:#374151;margin-bottom:6px"><b>{"条件" if ja else "Condition"}:</b> {d['condition']}</div>
+                    <div style="font-size:0.73rem;color:#555;margin-bottom:6px">{d['what']}</div>
+                    <div style="font-size:0.72rem;font-weight:600;color:{info['color']}">{d['outcome']}</div>
+                </div>""", unsafe_allow_html=True)
+    st.markdown("")
 
 # ---- Dashboard overview (always shown below results) ----
 
