@@ -99,7 +99,7 @@ else:
         return f"background-color: {colors.get(val, '')}"
 
     st.dataframe(
-        run_df.style.applymap(color_decision, subset=[decision_col]),
+        run_df.style.map(color_decision, subset=[decision_col]),
         use_container_width=True, hide_index=True
     )
 

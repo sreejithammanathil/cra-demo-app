@@ -15,7 +15,7 @@ st.set_page_config(
     page_title="CRA Decision Traceability System",
     page_icon="🔐",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # ---- shared session state ----
@@ -199,7 +199,7 @@ with stats_col:
         def _color(val):
             return {"REPORT":"background-color:#fff5f5","NOT_REPORT":"background-color:#f0fff4",
                     "CONFLICT":"background-color:#fff8ec","ESCALATED":"background-color:#fdf4ff"}.get(val,"")
-        st.dataframe(run_df.style.applymap(_color, subset=[dec_col]),
+        st.dataframe(run_df.style.map(_color, subset=[dec_col]),
                      use_container_width=True, hide_index=True)
 
 with nav_col:
