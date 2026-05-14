@@ -214,7 +214,7 @@ with nav_col:
          ("各シナリオの目的・決定ロジック・CRA関連性を解説します。" if ja else "Detailed walkthrough of each scenario's logic and CRA relevance."),
          "pages/2_📖_Scenarios.py"),
     ]
-    for icon, title, desc, page in nav_items:
+    for icon, title, desc, _page in nav_items:
         with st.container(border=True):
             nc1, nc2 = st.columns([1, 4])
             with nc1:
@@ -222,7 +222,7 @@ with nav_col:
             with nc2:
                 st.markdown(f"**{title}**")
                 st.caption(desc)
-            st.page_link(page, label=("→ 開く" if ja else "→ Open"), use_container_width=True)
+                st.caption("👈 " + ("左のサイドバーから移動してください" if ja else "Select from the left sidebar to open"))
 
 st.markdown("---")
 
