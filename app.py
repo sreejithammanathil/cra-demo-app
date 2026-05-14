@@ -28,6 +28,7 @@ if "runs_log"         not in st.session_state: st.session_state.runs_log        
 if "pipeline_results" not in st.session_state: st.session_state.pipeline_results = None
 if "pipeline_phase"   not in st.session_state: st.session_state.pipeline_phase   = "idle"
 if "pre_review"       not in st.session_state: st.session_state.pre_review       = None
+if "run_triggered"    not in st.session_state: st.session_state.run_triggered    = None
 if "engine" not in st.session_state:
     st.session_state.engine = DecisionEngine(
         products=PRODUCTS, cve_scenarios=CVE_SCENARIOS,
@@ -218,15 +219,16 @@ with st.sidebar:
     st.markdown("---")
     run_btn = st.button(t("sidebar_run_btn"), use_container_width=True, type="primary")
     if run_btn:
+        # Only set the trigger flag here — pipeline runs in the main area
+        # to keep spinner/success messages out of the sidebar
         st.session_state.pipeline_phase = "idle"
         st.session_state.pre_review = None
         st.session_state.pipeline_results = None
-        if CVE_SCENARIOS[selected_scenario].get("human_review_required"):
-            st.session_state.pre_review = run_stages_1_to_4(selected_scenario, selected_product)
-            st.session_state.pipeline_phase = "awaiting_human"
-        else:
-            st.session_state.pipeline_results = run_pipeline(selected_scenario, selected_product)
-            st.session_state.pipeline_phase = "complete"
+        st.session_state.run_triggered = {
+            "scenario": selected_scenario,
+            "product": selected_product,
+        }
+        st.rerun()
 
     if st.session_state.runs_log:
         st.markdown("---")
@@ -260,6 +262,18 @@ with st.sidebar:
 st.title(f"🔐 {t('app_title')}")
 st.markdown(f"**{t('app_subtitle')}**")
 st.markdown("---")
+
+# Execute pipeline here (main area) so spinners/messages render outside the sidebar
+if st.session_state.run_triggered:
+    trig = st.session_state.run_triggered
+    st.session_state.run_triggered = None
+    if CVE_SCENARIOS[trig["scenario"]].get("human_review_required"):
+        st.session_state.pre_review = run_stages_1_to_4(trig["scenario"], trig["product"])
+        st.session_state.pipeline_phase = "awaiting_human"
+    else:
+        st.session_state.pipeline_results = run_pipeline(trig["scenario"], trig["product"])
+        st.session_state.pipeline_phase = "complete"
+    st.rerun()
 
 # If pipeline results or human review are active, show those FIRST
 if st.session_state.pipeline_phase == "awaiting_human" and st.session_state.pre_review:
