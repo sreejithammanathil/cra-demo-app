@@ -122,7 +122,10 @@ def run_stages_1_to_4(scenario_key, product_name):
         sbom_match=engine.match_sbom(cve,product_name); st.success(t("spin2_ok",reason=sbom_match["match_reason"]))
     with st.spinner(t("spin3")):
         conflict_info=engine.detect_conflicts(cve,sbom_match,scenario_key)
-        st.warning(t("spin3_conflict",type=conflict_info["conflict_type"])) if conflict_info["conflict_detected"] else st.success(t("spin3_ok"))
+        if conflict_info["conflict_detected"]:
+            st.warning(t("spin3_conflict",type=conflict_info["conflict_type"]))
+        else:
+            st.success(t("spin3_ok"))
     with st.spinner(t("spin4")):
         decision_proposal=engine.propose_decision(cve,sbom_match,conflict_info,scenario_key)
         st.success(t("spin4_ok",decision=decision_proposal["decision_type"],conf=f"{decision_proposal['confidence_score']:.0%}"))
@@ -152,7 +155,10 @@ def run_pipeline(scenario_key, product_name):
         sbom_match=engine.match_sbom(cve,product_name); st.success(t("spin2_ok",reason=sbom_match["match_reason"]))
     with st.spinner(t("spin3")):
         conflict_info=engine.detect_conflicts(cve,sbom_match,scenario_key)
-        st.warning(t("spin3_conflict",type=conflict_info["conflict_type"])) if conflict_info["conflict_detected"] else st.success(t("spin3_ok"))
+        if conflict_info["conflict_detected"]:
+            st.warning(t("spin3_conflict",type=conflict_info["conflict_type"]))
+        else:
+            st.success(t("spin3_ok"))
     with st.spinner(t("spin4")):
         decision_proposal=engine.propose_decision(cve,sbom_match,conflict_info,scenario_key)
         st.success(t("spin4_ok",decision=decision_proposal["decision_type"],conf=f"{decision_proposal['confidence_score']:.0%}"))
@@ -358,7 +364,10 @@ elif st.session_state.pipeline_results:
         a,b,c=st.columns(3)
         a.metric(t("metric_product"),match["product_name"]); b.metric(t("metric_match_confidence"),f"{match['match_confidence']:.0%}")
         c.metric(t("metric_component_found"),("YES 🔴" if match["matching_component"] else "NO 🟢") if not ja else ("あり 🔴" if match["matching_component"] else "なし 🟢"))
-        st.error(t("t2_vuln",reason=match["match_reason"])) if match["match_found"] else st.success(t("t2_safe",reason=match["match_reason"]))
+        if match["match_found"]:
+            st.error(t("t2_vuln",reason=match["match_reason"]))
+        else:
+            st.success(t("t2_safe",reason=match["match_reason"]))
         st.markdown(t("t2_sbom_table"))
         df=sbom_table(results["product_name"],match.get("matching_component"),match["match_found"])
         st.dataframe(df.style.map(lambda v:"background-color:#fff5f5" if t("t2_vulnerable") in str(v) else "",subset=[t("t2_col_status")]),use_container_width=True,hide_index=True)
@@ -368,11 +377,16 @@ elif st.session_state.pipeline_results:
         if conflict["conflict_detected"]:
             st.warning(t("t3_conflict",type=conflict["conflict_type"]))
             c1,c2=st.columns(2)
-            with c1: st.markdown(t("t3_evidence")); [st.markdown(f"- {ev}") for ev in conflict["evidence_summary"]]
+            with c1:
+                st.markdown(t("t3_evidence"))
+                for ev in conflict["evidence_summary"]:
+                    st.markdown(f"- {ev}")
             with c2:
                 if conflict.get("vex_available"): st.info(t("t3_vex"))
         else:
-            st.success(t("t3_no_conflict")); [st.markdown(f"- {ev}") for ev in conflict["evidence_summary"]]
+            st.success(t("t3_no_conflict"))
+            for ev in conflict["evidence_summary"]:
+                st.markdown(f"- {ev}")
         with st.expander(t("t3_raw")): st.json(conflict)
 
     with tab4:
