@@ -432,13 +432,10 @@ k5.metric("🔴 REPORT",report_count,delta=f"+{report_count}" if report_count el
 st.markdown("---")
 
 # Session stats + products
-stat_col, prod_col = st.columns([2, 3], gap="large")
-
-with stat_col:
-    st.markdown("#### " + ("セッション決定内訳" if ja else "Session Decision Breakdown"))
-    if not runs:
-        st.info("👈 " + ("サイドバーからシナリオを実行してください" if ja else "Run a scenario from the sidebar to see stats"))
-    else:
+if runs:
+    stat_col, prod_col = st.columns([2, 3], gap="large")
+    with stat_col:
+        st.markdown("#### " + ("セッション決定内訳" if ja else "Session Decision Breakdown"))
         counts = Counter(r["decision"] for r in runs)
         fig = go.Figure(go.Pie(
             labels=list(counts.keys()), values=list(counts.values()), hole=0.55,
@@ -447,8 +444,22 @@ with stat_col:
         ))
         fig.update_layout(title=("決定内訳" if ja else "Decisions"),height=260,margin=dict(t=40,b=10,l=10,r=10),showlegend=False)
         st.plotly_chart(fig,use_container_width=True)
-
-with prod_col:
+    with prod_col:
+        st.markdown("#### " + ("🏭 J-TEC 製品" if ja else "🏭 J-TEC Products"))
+        pc = st.columns(3)
+        colors=[("#6366f1","#f5f3ff"),("#0ea5e9","#f0f9ff"),("#10b981","#f0fdf4")]
+        for col,(pname,p),(clr,bg) in zip(pc,PRODUCTS.items(),colors):
+            with col:
+                comps=p["sbom"]["components"]
+                st.markdown(f"""<div style="border-radius:10px;padding:14px;border-left:5px solid {clr};background:{bg}">
+                    <div style="font-weight:800;font-size:0.95rem">{pname}</div>
+                    <div style="font-size:0.78rem;color:#555;margin-top:2px">{p['type']}</div>
+                    <div style="font-size:0.76rem;color:#888;margin-top:4px">v{p['version']} · {len(comps)} {"コンポーネント" if ja else "components"}</div>
+                </div>""",unsafe_allow_html=True)
+                with st.expander("SBOM"):
+                    for c in comps:
+                        st.caption(f"• **{c['name']}** v{c['version']}")
+else:
     st.markdown("#### " + ("🏭 J-TEC 製品" if ja else "🏭 J-TEC Products"))
     pc = st.columns(3)
     colors=[("#6366f1","#f5f3ff"),("#0ea5e9","#f0f9ff"),("#10b981","#f0fdf4")]
@@ -483,6 +494,74 @@ for i,rule in enumerate(DECISION_RULES):
                 <span style="background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:10px;font-size:0.72rem">conf {rule['confidence_boost']:.0%}</span>
             </div>
         </div>""",unsafe_allow_html=True)
+
+st.markdown("---")
+
+# Market Coverage & CRA Jurisdiction
+st.markdown("#### " + ("🌍 市場カバレッジ & 規制管轄" if ja else "🌍 Market Coverage & Regulatory Jurisdiction"))
+st.caption(
+    "各市場の監督機関・CSIRT・適用法令。英国はEU外のためCRAは適用されません。" if ja else
+    "National authorities, CSIRTs, and applicable regulation per market. UK is non-EU — CRA does not apply there."
+)
+
+_MARKET = [
+    {"flag":"🇩🇪","name":"Germany",       "name_ja":"ドイツ",         "nca":"BSI",           "csirt":"CERT-Bund",   "reg":"CRA 2024/2847","eu":True },
+    {"flag":"🇫🇷","name":"France",        "name_ja":"フランス",       "nca":"ANSSI",         "csirt":"CERT-FR",     "reg":"CRA 2024/2847","eu":True },
+    {"flag":"🇮🇹","name":"Italy",         "name_ja":"イタリア",       "nca":"ACN",           "csirt":"CSIRT Italia","reg":"CRA 2024/2847","eu":True },
+    {"flag":"🇪🇸","name":"Spain",         "name_ja":"スペイン",       "nca":"CCN / INCIBE",  "csirt":"CCN-CERT",    "reg":"CRA 2024/2847","eu":True },
+    {"flag":"🇮🇪","name":"Ireland",       "name_ja":"アイルランド",   "nca":"NCSC Ireland",  "csirt":"NCSC-IE",     "reg":"CRA 2024/2847","eu":True },
+    {"flag":"🇬🇧","name":"United Kingdom","name_ja":"英国",           "nca":"DSIT / NCSC UK","csirt":"NCSC UK",     "reg":"PSTI Act 2022","eu":False},
+]
+
+mkt_cols = st.columns(3)
+for i, c in enumerate(_MARKET):
+    bg     = "#f0fff4" if c["eu"] else "#fff8ec"
+    border = "#21c354" if c["eu"] else "#ffa500"
+    badge_color = "#21c354" if c["eu"] else "#ffa500"
+    cname  = c["name_ja"] if ja else c["name"]
+    note   = ("EU加盟国 · CRA第14条 報告義務あり" if ja else "EU Member · Article 14 reporting required") if c["eu"] \
+             else ("⚠️ EU外 · CRA非適用 · PSTI法 2022 準拠" if ja else "⚠️ Non-EU · CRA does not apply · PSTI Act 2022")
+    nca_lbl  = "監督機関" if ja else "NCA"
+    with mkt_cols[i % 3]:
+        st.markdown(f"""<div style="border-radius:8px;padding:12px 14px;background:{bg};border-left:4px solid {border};margin-bottom:10px">
+            <div style="font-weight:700;font-size:1rem">{c['flag']} {cname}</div>
+            <div style="font-size:0.74rem;color:#374151;margin-top:5px">{nca_lbl}: <b>{c['nca']}</b></div>
+            <div style="font-size:0.74rem;color:#374151">CSIRT: <b>{c['csirt']}</b></div>
+            <div style="margin-top:6px">
+                <span style="background:{badge_color};color:white;padding:2px 8px;border-radius:10px;font-size:0.7rem;font-weight:600">{c['reg']}</span>
+            </div>
+            <div style="font-size:0.7rem;color:#6b7280;margin-top:5px">{note}</div>
+        </div>""", unsafe_allow_html=True)
+
+with st.expander("ℹ️ " + ("国ごとの違いについて" if ja else "How country differences are handled")):
+    if ja:
+        st.markdown("""
+**EU加盟国（ドイツ・フランス・イタリア・スペイン・アイルランド）**
+- EU CRA 2024/2847 第14条が一律適用
+- 能動的に悪用された脆弱性は**24時間以内**にENISAおよび各国CSIRTに報告義務
+- 各国の監督機関（NCA）が市場監視を担当
+- 本パイプラインの決定エンジンはすべてのEU加盟国に対応
+
+**英国 🇬🇧**
+- EUを離脱しているためCRAは**適用されません**
+- 代わりにPSTI法（製品セキュリティ・通信インフラ法）2022が適用（2024年4月施行）
+- 報告先：DSIT（デジタル・科学・インフラ・技術省）/ NCSC UK
+- J-TECが英国向けに製品を販売する場合、**別途PST準拠フローが必要**
+        """)
+    else:
+        st.markdown("""
+**EU Member States (Germany, France, Italy, Spain, Ireland)**
+- EU CRA 2024/2847 Article 14 applies uniformly across all EU members
+- Actively exploited vulnerabilities must be reported to **ENISA + the national CSIRT within 24 hours**
+- Each country's National Competent Authority (NCA) handles market surveillance
+- This pipeline's decision engine covers all EU member states
+
+**United Kingdom 🇬🇧**
+- UK left the EU — **CRA does not apply**
+- Instead: **PSTI Act 2022** (Product Security & Telecommunications Infrastructure Act), in force since April 2024
+- Reporting goes to DSIT (Dept. for Science, Innovation & Technology) / NCSC UK
+- If J-TEC sells products into the UK market, a **separate PSTI compliance flow is required**
+        """)
 
 st.markdown("---")
 st.markdown(f"<div style='text-align:center;font-size:12px;color:gray;'>🔐 {t('footer')}</div>",unsafe_allow_html=True)
