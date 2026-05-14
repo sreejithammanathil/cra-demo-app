@@ -146,3 +146,13 @@ for pname, p in PRODUCTS.items():
             for c in p["sbom"]["components"]
         ])
         st.dataframe(comp_df, use_container_width=True, hide_index=True)
+
+# ============= FOOTER =============
+
+st.markdown("---")
+st.markdown(
+    f"<div style='text-align:center;font-size:11px;color:#aaa;margin-top:8px;"
+    f"border-top:1px solid #eee;padding-top:10px;line-height:1.7;'>"
+    f"{t('legal_declaration')}</div>",
+    unsafe_allow_html=True
+)

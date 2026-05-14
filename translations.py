@@ -211,6 +211,15 @@ TRANSLATIONS = {
         "outcome_conflict": "🟠 CONFLICT",
         "outcome_human": "👤 HUMAN DECISION",
         "outcome_label": "Outcome:",
+
+        # Legal declaration
+        "legal_declaration": (
+            "**Brand Ownership Declaration** &nbsp;|&nbsp; "
+            "The name and brand <strong>Geoglyph Inc.</strong> are the exclusive property of Geoglyph Inc. "
+            "The name and brand <strong>J-TEC Co., Ltd.</strong> (株式会社J-TEC) are the exclusive property of J-TEC Co., Ltd. "
+            "All trademarks, trade names, and brand identifiers referenced in this application are the respective property of their owners. "
+            "This demo application is produced solely for evaluation and compliance demonstration purposes and does not imply any endorsement or partnership beyond the scope of this engagement."
+        ),
     },
 
     "ja": {
@@ -420,6 +429,16 @@ TRANSLATIONS = {
         "outcome_conflict": "🟠 矛盾",
         "outcome_human": "👤 人的判断",
         "outcome_label": "結果：",
+
+        # Legal declaration
+        "legal_declaration": (
+            "**ブランド所有権に関する声明** &nbsp;|&nbsp; "
+            "「<strong>Geoglyph Inc.</strong>」の名称およびブランドは、Geoglyph Inc.の独占的財産です。 "
+            "「<strong>株式会社J-TEC（J-TEC Co., Ltd.）</strong>」の名称およびブランドは、株式会社J-TECの独占的財産です。 "
+            "本アプリケーションに記載されているすべての商標、商号、およびブランド識別子は、それぞれの所有者の財産です。 "
+            "本デモアプリケーションは評価およびコンプライアンスデモンストレーションのみを目的として作成されており、"
+            "本業務の範囲を超えた推薦または提携関係を意味するものではありません。"
+        ),
     }
 }
 
