@@ -344,6 +344,14 @@ elif st.session_state.pipeline_results:
     col4.metric(t("metric_cvss"),results["cve"]["cvss_score"])
     col5.metric(t("metric_severity"),results["cve"]["severity"])
 
+    # Post-ENISA lifecycle prompt (only for REPORT decisions)
+    if final == "REPORT":
+        st.markdown(f"""
+        <div style="background:#1e3a5f;border-left:5px solid #3b82f6;border-radius:8px;padding:12px 18px;margin:10px 0">
+          <b style="color:#93c5fd;font-size:0.85rem">{'⚠️ ENISA報告義務が発生しました — 規制ライフサイクルが開始されます' if ja else '⚠️ ENISA reporting obligation triggered — Regulatory lifecycle now active'}</b><br>
+          <span style="color:#e0f2fe;font-size:0.8rem">{'サイドバーの「Compliance」ページで完全な報告後ライフサイクル管理（規制調整・修正・監査保管）を確認できます。' if ja else 'Open the Compliance page (sidebar) to manage the full post-reporting lifecycle: regulatory coordination, remediation governance, audit retention.'}</span>
+        </div>""", unsafe_allow_html=True)
+
     st.markdown("---"); st.markdown(t("section_pipeline")); pipeline_stepper(completed=6); st.markdown("---")
 
     tab1,tab2,tab3,tab4,tab5,tab6,tab7=st.tabs([t("tab_ingest"),t("tab_sbom"),t("tab_conflict"),t("tab_rules"),t("tab_review"),t("tab_enisa"),t("tab_artifacts")])

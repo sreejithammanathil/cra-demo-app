@@ -273,3 +273,259 @@ ENISA_MOCK_RESPONSE = {
     "received_timestamp": None,  # Will be set at runtime
     "sla_deadline": "24 hours"
 }
+
+
+# ============= POST-ENISA COMPLIANCE LIFECYCLE DATA =============
+
+POST_ENISA_DATA = {
+    "case_ref": "CRA-2026-TS5525-001",
+    "cve_id": "CVE-2025-0001",
+    "product": "TS5525 Industrial Controller",
+    "initial_report_ts": "2026-04-28 09:14 UTC",
+    "enisa_submission_id": "ENISA-SUB-20260428-7742",
+
+    # ── 12 operational phases ──
+    "lifecycle_phases": [
+        {"id":"L01","name":"Initial ENISA Report","name_ja":"ENISA初期報告",            "status":"COMPLETE",    "ts":"2026-04-28 09:14","sla_h":24, "elapsed_h":18,"owner":"Compliance Team"},
+        {"id":"L02","name":"Regulatory Acknowledgement","name_ja":"規制機関確認",       "status":"COMPLETE",    "ts":"2026-04-29 11:02","sla_h":48, "elapsed_h":38,"owner":"ENISA"},
+        {"id":"L03","name":"Internal Incident Coordination","name_ja":"社内調整",       "status":"COMPLETE",    "ts":"2026-04-29 14:30","sla_h":48, "elapsed_h":44,"owner":"CISO Office"},
+        {"id":"L04","name":"Technical Investigation","name_ja":"技術調査",              "status":"IN_PROGRESS", "ts":None,              "sla_h":120,"elapsed_h":96,"owner":"Security Engineering"},
+        {"id":"L05","name":"Root Cause Analysis","name_ja":"根本原因分析",              "status":"IN_PROGRESS", "ts":None,              "sla_h":168,"elapsed_h":72,"owner":"Platform Engineering"},
+        {"id":"L06","name":"Remediation Planning","name_ja":"修正計画",                 "status":"IN_PROGRESS", "ts":None,              "sla_h":120,"elapsed_h":48,"owner":"Engineering Lead"},
+        {"id":"L07","name":"Patch Development","name_ja":"パッチ開発",                  "status":"PENDING",     "ts":None,              "sla_h":336,"elapsed_h":0, "owner":"Platform Engineering"},
+        {"id":"L08","name":"Security Validation","name_ja":"セキュリティ検証",          "status":"PENDING",     "ts":None,              "sla_h":48, "elapsed_h":0, "owner":"Security Team"},
+        {"id":"L09","name":"Customer Notification","name_ja":"顧客通知",                "status":"IN_PROGRESS", "ts":None,              "sla_h":72, "elapsed_h":68,"owner":"Customer Success"},
+        {"id":"L10","name":"Patch Rollout Monitoring","name_ja":"パッチ展開監視",       "status":"PENDING",     "ts":None,              "sla_h":720,"elapsed_h":0, "owner":"DevOps"},
+        {"id":"L11","name":"Final ENISA Report","name_ja":"ENISA最終報告",              "status":"PENDING",     "ts":None,              "sla_h":2160,"elapsed_h":0,"owner":"Compliance Team"},
+        {"id":"L12","name":"Compliance Closure","name_ja":"コンプライアンス完了",       "status":"PENDING",     "ts":None,              "sla_h":2880,"elapsed_h":0,"owner":"CISO Office"},
+        {"id":"L13","name":"Audit Retention","name_ja":"監査保管",                      "status":"PENDING",     "ts":None,              "sla_h":None,"elapsed_h":0,"owner":"Legal & Compliance"},
+    ],
+
+    # ── Regulatory Coordination ──
+    "regulatory": {
+        "status": "MORE_EVIDENCE_REQUESTED",
+        "case_manager": "Marie Dubois (ENISA NIS Unit)",
+        "ack_ts": "2026-04-29 11:02 UTC",
+        "ack_ref": "ENISA-ACK-2026-4421",
+        "sla_days": 30, "days_elapsed": 15,
+        "open_request": "Patch development timeline and interim mitigation effectiveness report",
+        "response_deadline": "2026-05-20",
+        "national_authority": "BSI (Germany) — primary market",
+        "authority_statuses": [
+            {"name":"ENISA",     "status":"MORE_EVIDENCE_REQUESTED","flag":"🇪🇺"},
+            {"name":"BSI",       "status":"UNDER_REVIEW",           "flag":"🇩🇪"},
+            {"name":"ANSSI",     "status":"AWAITING_NOTIFICATION",  "flag":"🇫🇷"},
+            {"name":"ACN",       "status":"AWAITING_NOTIFICATION",  "flag":"🇮🇹"},
+            {"name":"NCSC-IE",   "status":"AWAITING_NOTIFICATION",  "flag":"🇮🇪"},
+            {"name":"CCN",       "status":"AWAITING_NOTIFICATION",  "flag":"🇪🇸"},
+        ],
+        "follow_ups": [
+            {"date":"2026-05-02","from":"ENISA","type":"Information Request","subject":"Exploit chain analysis — PoC reproduction steps","status":"RESPONDED"},
+            {"date":"2026-05-08","from":"BSI",  "type":"Additional Evidence", "subject":"Affected customer count by product version",        "status":"RESPONDED"},
+            {"date":"2026-05-12","from":"ENISA","type":"Information Request","subject":"Patch timeline + interim mitigation effectiveness",   "status":"PENDING"},
+        ],
+        "comms_log": [
+            {"ts":"2026-04-28 09:14","dir":"OUT","ch":"ENISA Portal",  "summary":"Initial 24h early warning — Article 14(2)"},
+            {"ts":"2026-04-29 11:02","dir":"IN", "ch":"ENISA Portal",  "summary":"Acknowledgement — case assigned to NIS Unit"},
+            {"ts":"2026-04-30 16:30","dir":"OUT","ch":"ENISA Portal",  "summary":"Full technical report — Article 14(3)"},
+            {"ts":"2026-05-02 10:15","dir":"IN", "ch":"Secure Email",  "summary":"Request: exploit chain analysis"},
+            {"ts":"2026-05-04 14:00","dir":"OUT","ch":"Secure Email",  "summary":"Exploit chain analysis — 12-page technical annex"},
+            {"ts":"2026-05-08 09:00","dir":"IN", "ch":"ENISA Portal",  "summary":"BSI: customer impact breakdown by version"},
+            {"ts":"2026-05-09 11:30","dir":"OUT","ch":"ENISA Portal",  "summary":"Customer impact data — 847 affected across v2.1-v2.8"},
+            {"ts":"2026-05-12 15:00","dir":"IN", "ch":"Secure Email",  "summary":"New request: patch timeline + mitigation effectiveness (due 2026-05-20)"},
+        ],
+    },
+
+    # ── Remediation Governance ──
+    "remediation": {
+        "status": "PATCH_IN_QA",
+        "owner": "Dr. K. Watanabe — Platform Engineering Lead",
+        "mitigation_available": True,
+        "mitigation_desc": "Disable OpenSSL module v1.0.2u; upgrade to OpenSSL 3.0.x where operationally feasible",
+        "workaround_published": True,
+        "workaround_ts": "2026-04-30 08:00 UTC",
+        "patch_eta": "2026-05-22",
+        "patch_version": "v2.9.1",
+        "validation_status": "IN_PROGRESS",
+        "unresolved_systems": 847,
+        "rollout_waves": [
+            {"wave":1,"target":"Internal test environment",       "systems":12, "status":"COMPLETE",    "date":"2026-05-18"},
+            {"wave":2,"target":"Staging & QA (external)",        "systems":35, "status":"IN_PROGRESS", "date":"2026-05-22"},
+            {"wave":3,"target":"High-risk production (23 cust.)", "systems":156,"status":"PENDING",     "date":"2026-05-25"},
+            {"wave":4,"target":"General production rollout",      "systems":644,"status":"PENDING",     "date":"2026-06-01"},
+        ],
+        "timeline": [
+            {"date":"2026-04-28","event":"Vulnerability confirmed — remediation initiated"},
+            {"date":"2026-04-30","event":"Interim mitigation published (disable module)"},
+            {"date":"2026-05-05","event":"Patch development commenced"},
+            {"date":"2026-05-12","event":"Internal code review complete"},
+            {"date":"2026-05-15","event":"Patch submitted to QA"},
+            {"date":"2026-05-22","event":"QA validation complete (ETA)"},
+            {"date":"2026-05-25","event":"High-risk customer rollout (ETA)"},
+            {"date":"2026-06-01","event":"General availability rollout (ETA)"},
+        ],
+    },
+
+    # ── Customer Notifications ──
+    "customer_notifications": {
+        "advisory_id": "J-TEC-SA-2026-001",
+        "advisory_ts": "2026-04-30 12:00 UTC",
+        "notifications_sent": 847,
+        "acknowledgements": 412,
+        "high_risk": 23,
+        "support_escalations": 7,
+        "templates": [
+            {"name":"Initial Advisory",              "name_ja":"初期アドバイザリー",    "status":"SENT",   "recipients":847,"ts":"2026-05-01 09:00"},
+            {"name":"Mitigation Instructions",       "name_ja":"緩和手順書",           "status":"SENT",   "recipients":847,"ts":"2026-05-01 10:30"},
+            {"name":"High-Risk Direct Contact",      "name_ja":"高リスク顧客直接連絡", "status":"SENT",   "recipients":23, "ts":"2026-05-01 08:00"},
+            {"name":"Patch Availability Notice",     "name_ja":"パッチ提供通知",       "status":"PENDING","recipients":847,"ts":None},
+            {"name":"Final Closure Notification",    "name_ja":"最終完了通知",         "status":"PENDING","recipients":847,"ts":None},
+        ],
+        "approval_chain": [
+            {"role":"Security Lead",  "name":"Tanaka Hiroshi","approved":True, "ts":"2026-04-30 10:00"},
+            {"role":"Legal Counsel",  "name":"Sarah Chen",    "approved":True, "ts":"2026-04-30 11:00"},
+            {"role":"CMO",            "name":"Marco Bianchi", "approved":True, "ts":"2026-04-30 11:45"},
+            {"role":"CISO",           "name":"Dr. Klaus Weber","approved":True,"ts":"2026-04-30 11:55"},
+        ],
+        "high_risk_detail": [
+            {"id":"C-DE-001","country":"🇩🇪 DE","version":"v2.1","status":"ACKNOWLEDGED","escalation":False},
+            {"id":"C-DE-007","country":"🇩🇪 DE","version":"v2.3","status":"PATCH_DEPLOYED","escalation":False},
+            {"id":"C-FR-003","country":"🇫🇷 FR","version":"v2.1","status":"ACKNOWLEDGED","escalation":True},
+            {"id":"C-IT-002","country":"🇮🇹 IT","version":"v2.5","status":"NOTIFIED",    "escalation":False},
+            {"id":"C-IE-001","country":"🇮🇪 IE","version":"v2.8","status":"NOTIFIED",    "escalation":False},
+        ],
+    },
+
+    # ── Root Cause Analysis ──
+    "rca": {
+        "status": "DRAFT",
+        "owner": "Dr. Aiko Tanaka — Security Architecture",
+        "started": "2026-04-29",
+        "target_completion": "2026-05-19",
+        "vuln_source": "Third-party OSS dependency — OpenSSL 1.0.2u (EOL Jan 2020)",
+        "dep_origin": "Direct dependency introduced TS5525 v2.0 (2023-Q3)",
+        "sdlc_gap": "SCA tooling subscription lapsed 2025-10-01, not renewed until 2026-03-15. No automated CVE-to-dependency alerting in CI/CD for TS5525 product line.",
+        "detection_failure": "CVE-2025-0001 published 2025-11-14. Internal detection 2026-04-27 — 165-day gap.",
+        "exploit_chain": "Remote attacker → HTTPS endpoint → Buffer overflow in OpenSSL handshake → Arbitrary code execution → Service account privilege escalation",
+        "findings": "OpenSSL 1.0.2u (EOL) remained in production due to lapsed SCA tooling, absent upgrade automation, and insufficient third-party lifecycle governance. No active exploitation detected in J-TEC production environment.",
+        "lessons_learned": [
+            "SCA subscription must be a critical security control with auto-renewal + CISO approval gate",
+            "Dependency upgrade policy: CVSS ≥7.0 CVEs trigger mandatory upgrade within 30 days",
+            "SBOM must be refreshed quarterly for all active products",
+            "CVE detection SLA: publication → internal alert ≤7 days for CRITICAL/HIGH",
+        ],
+        "preventive_actions": [
+            {"action":"Integrate SCA into all product CI/CD",         "owner":"DevSecOps",         "deadline":"2026-06-30","status":"IN_PROGRESS"},
+            {"action":"Automated upgrade policy CVSS ≥7.0",          "owner":"Platform Eng.",      "deadline":"2026-07-31","status":"PLANNED"},
+            {"action":"Quarterly SBOM refresh — all active products", "owner":"Product Security",   "deadline":"2026-06-01","status":"IN_PROGRESS"},
+            {"action":"7-day CVE detection SLA + auto alerting",      "owner":"Security Ops",       "deadline":"2026-06-15","status":"IN_PROGRESS"},
+            {"action":"EOL component policy + exception process",     "owner":"Architecture Board", "deadline":"2026-08-31","status":"PLANNED"},
+        ],
+    },
+
+    # ── Final ENISA Report ──
+    "final_report": {
+        "status": "NOT_STARTED",
+        "due": "2026-07-27",
+        "days_remaining": 74,
+        "sections": [
+            {"name":"Executive Summary",                "status":"DRAFT"},
+            {"name":"Vulnerability Technical Details",  "status":"COMPLETE"},
+            {"name":"Affected Versions & Systems",      "status":"COMPLETE"},
+            {"name":"Timeline of Events",               "status":"IN_PROGRESS"},
+            {"name":"Mitigation Effectiveness",         "status":"PENDING"},
+            {"name":"Patch Deployment Status",          "status":"PENDING"},
+            {"name":"Customer Impact Summary",          "status":"IN_PROGRESS"},
+            {"name":"Root Cause Analysis Summary",      "status":"DRAFT"},
+            {"name":"Residual Risk Assessment",         "status":"PENDING"},
+            {"name":"Preventive Actions Committed",     "status":"IN_PROGRESS"},
+            {"name":"Evidence Attachments Index",       "status":"PENDING"},
+        ],
+        "initial_vs_final": [
+            {"field":"Scope",          "initial":"1 product, 1 CVE",    "final":"1 product, 1 CVE (confirmed)"},
+            {"field":"Affected Count", "initial":"~900 systems (est.)", "final":"847 systems (confirmed)"},
+            {"field":"Exploit Status", "initial":"Not confirmed",       "final":"No exploitation detected"},
+            {"field":"Mitigation",     "initial":"Under investigation", "final":"Workaround published; patch in QA"},
+            {"field":"Patch ETA",      "initial":"TBD",                 "final":"2026-05-22"},
+        ],
+    },
+
+    # ── Audit Retention ──
+    "audit": {
+        "status": "ACTIVE",
+        "retention_years": 5,
+        "case_opened": "2026-04-28",
+        "expected_closure": "2026-08-01",
+        "retention_expiry": "2031-08-01",
+        "completeness_pct": 60,
+        "evidence_packages": [
+            {"id":"EVP-001","name":"Initial ENISA Submission",    "type":"REGULATORY_FILING",   "size_kb":245, "hash":"sha256:a4f2b1c9…","status":"LOCKED",  "ts":"2026-04-28"},
+            {"id":"EVP-002","name":"CVE Technical Analysis",      "type":"TECHNICAL_REPORT",    "size_kb":1820,"hash":"sha256:b7e3d2f1…","status":"LOCKED",  "ts":"2026-04-30"},
+            {"id":"EVP-003","name":"SBOM Snapshot v2.8",          "type":"SBOM",                "size_kb":412, "hash":"sha256:c9a1e4b2…","status":"LOCKED",  "ts":"2026-04-28"},
+            {"id":"EVP-004","name":"Exploit Chain Analysis",      "type":"TECHNICAL_REPORT",    "size_kb":3104,"hash":"sha256:d2f5c8a3…","status":"LOCKED",  "ts":"2026-05-04"},
+            {"id":"EVP-005","name":"Customer Notification Records","type":"NOTIFICATION_LOG",   "size_kb":890, "hash":"sha256:e8b4d7c1…","status":"LOCKED",  "ts":"2026-05-01"},
+            {"id":"EVP-006","name":"ENISA Communication Log",     "type":"COMMUNICATION_LOG",   "size_kb":156, "hash":"sha256:f1c6e9a4…","status":"LOCKED",  "ts":"2026-05-12"},
+            {"id":"EVP-007","name":"RCA Draft Findings",          "type":"INVESTIGATION_REPORT","size_kb":0,   "hash":"pending…",        "status":"PENDING", "ts":None},
+            {"id":"EVP-008","name":"Patch Release Notes v2.9.1",  "type":"PATCH_DOCUMENTATION", "size_kb":0,   "hash":"pending…",        "status":"PENDING", "ts":None},
+            {"id":"EVP-009","name":"Final ENISA Report",          "type":"REGULATORY_FILING",   "size_kb":0,   "hash":"pending…",        "status":"PENDING", "ts":None},
+            {"id":"EVP-010","name":"Audit Chain Export",          "type":"AUDIT_LOG",           "size_kb":0,   "hash":"pending…",        "status":"PENDING", "ts":None},
+        ],
+        "custody_log": [
+            {"event":"Case opened",                    "actor":"System",               "ts":"2026-04-28 09:14"},
+            {"event":"EVP-001 locked (ENISA filing)",  "actor":"Compliance Officer",   "ts":"2026-04-28 09:14"},
+            {"event":"EVP-003 locked (SBOM snapshot)", "actor":"System",               "ts":"2026-04-28 09:14"},
+            {"event":"EVP-002 locked (tech analysis)", "actor":"Security Engineer",    "ts":"2026-04-30 16:30"},
+            {"event":"EVP-005 locked (notif records)", "actor":"Customer Success Lead","ts":"2026-05-01 09:30"},
+            {"event":"EVP-004 locked (exploit chain)", "actor":"Security Engineer",    "ts":"2026-05-04 15:00"},
+            {"event":"EVP-006 locked (ENISA comms)",   "actor":"Compliance Officer",   "ts":"2026-05-12 16:00"},
+        ],
+    },
+
+    # ── Post-Closure Monitoring ──
+    "monitoring": {
+        "active": True,
+        "monitoring_until": "2026-12-01",
+        "last_kev_check": "2026-05-13 06:00 UTC",
+        "exploit_intel_status": "NO_NEW_ACTIVITY",
+        "patch_bypass": False,
+        "sources": ["ENISA EUVDB", "CISA KEV", "NVD", "Vendor Security Bulletins", "BSI Advisories"],
+        "reopen_triggers": [
+            {"trigger":"Active exploitation detected",     "trigger_ja":"能動的エクスプロイト検出",    "status":"MONITORING"},
+            {"trigger":"Mitigation bypass identified",     "trigger_ja":"緩和バイパス検出",           "status":"MONITORING"},
+            {"trigger":"Regulator escalation",            "trigger_ja":"規制機関エスカレーション",    "status":"MONITORING"},
+            {"trigger":"New affected products found",     "trigger_ja":"新たな影響製品発見",          "status":"MONITORING"},
+            {"trigger":"KEV list addition",               "trigger_ja":"KEVリスト追加",               "status":"MONITORING"},
+            {"trigger":"Customer-reported exploit",       "trigger_ja":"顧客報告エクスプロイト",      "status":"MONITORING"},
+        ],
+        "kev_log": [
+            {"date":"2026-04-27","event":"CVE-2025-0001 not in KEV at detection"},
+            {"date":"2026-05-01","event":"NVD severity confirmed: CRITICAL 9.8"},
+            {"date":"2026-05-13","event":"No KEV addition — monitoring continues"},
+        ],
+    },
+
+    # ── Executive & Legal Panel ──
+    "executive": {
+        "overall_risk": "MEDIUM",
+        "unresolved_exposure": 847,
+        "regulatory_risk": "MEDIUM",
+        "regulatory_detail": "ENISA additional info requested — response due 2026-05-20",
+        "litigation_risk": "LOW",
+        "litigation_detail": "No customer-reported incidents. Proactive notification sent. Workaround available.",
+        "sla_compliance_pct": 96.7,
+        "sla_breaches": 1,
+        "sla_breach_detail": "Customer notification SLA (72h) exceeded by 4h for 7 customers in non-EU timezone",
+        "financial_low": 250000,
+        "financial_high": 1500000,
+        "days_open": 15,
+        "days_to_patch": 8,
+        "kpis": [
+            {"name":"Time to Initial Report",   "name_ja":"初期報告時間",     "value":"18 h",       "target":"24 h",       "met":True},
+            {"name":"Customer Notification",    "name_ja":"顧客通知",         "value":"72 h + 4 h", "target":"72 h",       "met":False},
+            {"name":"Regulatory Response SLA",  "name_ja":"規制対応SLA",      "value":"On track",   "target":"2026-05-20", "met":True},
+            {"name":"Patch ETA",                "name_ja":"パッチETA",        "value":"2026-05-22", "target":"30 days",    "met":True},
+            {"name":"RCA Completion",           "name_ja":"RCA完了",          "value":"In progress","target":"2026-05-19", "met":True},
+            {"name":"Evidence Package",         "name_ja":"証拠パッケージ",   "value":"60 %",       "target":"100 % by closure","met":True},
+        ],
+    },
+}
