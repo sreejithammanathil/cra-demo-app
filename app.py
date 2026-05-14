@@ -256,10 +256,10 @@ with st.sidebar:
     nav1, nav2 = st.columns(2)
     with nav1:
         if st.button("📚 " + ("履歴" if ja else "History"), use_container_width=True):
-            st.switch_page("pages/1_📚_History.py")
+            st.switch_page("pages/1_History.py")
     with nav2:
         if st.button("📖 " + ("解説" if ja else "Scenarios"), use_container_width=True):
-            st.switch_page("pages/2_📖_Scenarios.py")
+            st.switch_page("pages/2_Scenarios.py")
 
 # ============= MAIN AREA =============
 
