@@ -1,15 +1,19 @@
 """
-CRA Decision Traceability System — Executive Dashboard
-Home screen: system overview, KPIs, session stats, products, rules
+CRA Decision Traceability System — Executive Dashboard + Pipeline Runner
 """
 
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from datetime import datetime
+import json
+from collections import Counter
 
 from mock_data import PRODUCTS, CVE_SCENARIOS, DECISION_RULES, THRESHOLDS
-from translations import t
+from decision_engine import DecisionEngine
+from enisa_reporter import generate_enisa_submission_json, generate_compliance_artifact_html
+from translations import t, SCENARIO_JA
 
 st.set_page_config(
     page_title="CRA Decision Traceability System",
@@ -24,280 +28,462 @@ if "runs_log"         not in st.session_state: st.session_state.runs_log        
 if "pipeline_results" not in st.session_state: st.session_state.pipeline_results = None
 if "pipeline_phase"   not in st.session_state: st.session_state.pipeline_phase   = "idle"
 if "pre_review"       not in st.session_state: st.session_state.pre_review       = None
+if "engine" not in st.session_state:
+    st.session_state.engine = DecisionEngine(
+        products=PRODUCTS, cve_scenarios=CVE_SCENARIOS,
+        decision_rules=DECISION_RULES, thresholds=THRESHOLDS
+    )
 
 ja = st.session_state.lang == "ja"
 
 # ============= CSS =============
 st.markdown("""
 <style>
-  /* Readiness stage pill */
-  .ready-pill {
-    display:inline-flex; align-items:center; gap:6px;
-    background:#dcfce7; color:#166534;
-    border:1px solid #bbf7d0; border-radius:20px;
-    padding:5px 14px; font-size:0.82rem; font-weight:600;
-  }
-  .ready-dot { width:8px; height:8px; border-radius:50%; background:#21c354; }
-
-  /* Nav card */
-  .nav-card {
-    border-radius:12px; padding:20px 18px;
-    border:1px solid #e5e7eb;
-    transition: box-shadow .15s;
-    height: 100%;
-  }
-  .nav-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.10); }
-  .nav-card .nav-icon { font-size:2rem; margin-bottom:8px; }
-  .nav-card .nav-title { font-size:1.05rem; font-weight:700; margin-bottom:4px; }
-  .nav-card .nav-desc  { font-size:0.83rem; color:#6b7280; }
-
-  /* Product card */
-  .prod-card {
-    border-radius:10px; padding:16px;
-    border-left:5px solid #6366f1; background:#f5f3ff;
-  }
-
-  /* Section label */
-  .section-lbl {
-    font-size:0.72rem; font-weight:700; letter-spacing:.08em;
-    text-transform:uppercase; color:#9ca3af; margin-bottom:6px;
-  }
-
-  /* Divider with label */
-  .divider-lbl {
-    display:flex; align-items:center; gap:10px; margin:24px 0 16px;
-  }
-  .divider-lbl span { font-size:1rem; font-weight:700; white-space:nowrap; }
-  .divider-lbl::after {
-    content:""; flex:1; height:1px; background:#e5e7eb;
-  }
+.ready-pill{display:inline-flex;align-items:center;gap:6px;background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:20px;padding:5px 14px;font-size:0.82rem;font-weight:600}
+.ready-dot{width:8px;height:8px;border-radius:50%;background:#21c354}
+.badge-report    {background:#ff4b4b;color:white;padding:6px 18px;border-radius:20px;font-weight:bold;font-size:1.1rem;display:inline-block}
+.badge-not-report{background:#21c354;color:white;padding:6px 18px;border-radius:20px;font-weight:bold;font-size:1.1rem;display:inline-block}
+.badge-conflict  {background:#ffa500;color:white;padding:6px 18px;border-radius:20px;font-weight:bold;font-size:1.1rem;display:inline-block}
+.stepper-wrap{display:flex;justify-content:space-between;align-items:center;margin:1rem 0 1.5rem 0}
+.step-item{display:flex;flex-direction:column;align-items:center;flex:1;position:relative}
+.step-item:not(:last-child)::after{content:"";position:absolute;top:18px;left:60%;width:80%;height:3px;background:#e0e0e0;z-index:0}
+.step-item.done:not(:last-child)::after{background:#21c354}
+.step-circle{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:1rem;z-index:1;background:#e0e0e0;color:#888}
+.step-circle.done{background:#21c354;color:white}
+.step-label{font-size:0.72rem;margin-top:4px;text-align:center;color:#555;max-width:80px}
+.step-label.done{color:#21c354;font-weight:600}
+.audit-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600}
+.audit-stage{background:#dbeafe;color:#1d4ed8}
+.audit-decision{background:#dcfce7;color:#166534}
+.audit-conflict{background:#fef9c3;color:#854d0e}
 </style>
 """, unsafe_allow_html=True)
 
-# ============= HEADER ROW =============
+# ============= HELPERS =============
 
-top_left, top_right = st.columns([5, 1])
-with top_left:
-    st.title(f"🔐 {t('app_title')}")
-    st.markdown(f"**{t('app_subtitle')}**")
-with top_right:
-    st.markdown("<div style='margin-top:18px'></div>", unsafe_allow_html=True)
+def decision_badge(d):
+    cls = {"REPORT":"badge-report","NOT_REPORT":"badge-not-report"}.get(d,"badge-conflict")
+    return f'<span class="{cls}">{d}</span>'
+
+def pipeline_stepper(completed=6):
+    labels=[t("step_ingest"),t("step_sbom"),t("step_conflict"),t("step_rules"),t("step_review"),t("step_enisa")]
+    items=""
+    for i,lbl in enumerate(labels,1):
+        done="done" if i<=completed else ""
+        icon="✓" if i<=completed else str(i)
+        items+=f'<div class="step-item {done}"><div class="step-circle {done}">{icon}</div><div class="step-label {done}">{lbl.replace(chr(10),"<br>")}</div></div>'
+    st.markdown(f'<div class="stepper-wrap">{items}</div>',unsafe_allow_html=True)
+
+def cvss_gauge(score):
+    color="#ff4b4b" if score>=8.5 else "#ffa500" if score>=7.0 else "#ffd700" if score>=5.0 else "#21c354"
+    fig=go.Figure(go.Indicator(
+        mode="gauge+number",value=score,domain={"x":[0,1],"y":[0,1]},
+        title={"text":"CVSS Score","font":{"size":16}},
+        gauge={"axis":{"range":[0,10]},"bar":{"color":color},
+               "steps":[{"range":[0,4],"color":"#d4edda"},{"range":[4,7],"color":"#fff3cd"},
+                        {"range":[7,8.5],"color":"#ffe0b2"},{"range":[8.5,10],"color":"#f8d7da"}],
+               "threshold":{"line":{"color":"black","width":3},"thickness":0.75,"value":score}}
+    ))
+    fig.update_layout(height=220,margin=dict(t=40,b=10,l=20,r=20))
+    return fig
+
+def sbom_table(product_name, matching_component, match_found):
+    rows=[]
+    for c in PRODUCTS.get(product_name,{}).get("sbom",{}).get("components",[]):
+        is_vuln=match_found and c["name"].lower() in (matching_component or "").lower()
+        rows.append({t("t2_col_component"):c["name"],t("t2_col_version"):c["version"],
+                     t("t2_col_vendor"):c["vendor"],t("t2_col_type"):c["type"].capitalize(),
+                     t("t2_col_status"):t("t2_vulnerable") if is_vuln else t("t2_safe_status")})
+    return pd.DataFrame(rows)
+
+def rule_confidence_chart(rules_fired):
+    names=[r["rule"] for r in rules_fired]; triggered=[r["triggered"] for r in rules_fired]
+    fig=px.bar(x=names,y=[1]*len(names),color=triggered,
+               color_discrete_map={True:"#21c354",False:"#e0e0e0"},
+               title="Decision Rules — Triggered / Not Triggered")
+    fig.update_layout(height=220,showlegend=False,margin=dict(t=40,b=60,l=20,r=20),yaxis_visible=False)
+    fig.update_xaxes(tickangle=-20)
+    return fig
+
+def cve_desc(scenario_key):
+    if st.session_state.lang=="ja":
+        return SCENARIO_JA.get(scenario_key,{}).get("cve_description",CVE_SCENARIOS[scenario_key]["cve_description"])
+    return CVE_SCENARIOS[scenario_key]["cve_description"]
+
+# ============= PIPELINE FUNCTIONS =============
+
+def run_stages_1_to_4(scenario_key, product_name):
+    engine=st.session_state.engine; engine.reset_audit_trail()
+    scenario=CVE_SCENARIOS[scenario_key]; cve_id=scenario["cve_id"]
+    with st.spinner(t("spin1")):
+        cve=engine.ingest_cve(cve_id,scenario_key); st.success(t("spin1_ok",cve_id=cve_id))
+    with st.spinner(t("spin2")):
+        sbom_match=engine.match_sbom(cve,product_name); st.success(t("spin2_ok",reason=sbom_match["match_reason"]))
+    with st.spinner(t("spin3")):
+        conflict_info=engine.detect_conflicts(cve,sbom_match,scenario_key)
+        st.warning(t("spin3_conflict",type=conflict_info["conflict_type"])) if conflict_info["conflict_detected"] else st.success(t("spin3_ok"))
+    with st.spinner(t("spin4")):
+        decision_proposal=engine.propose_decision(cve,sbom_match,conflict_info,scenario_key)
+        st.success(t("spin4_ok",decision=decision_proposal["decision_type"],conf=f"{decision_proposal['confidence_score']:.0%}"))
+    return {"scenario_key":scenario_key,"scenario_name":scenario["name"],"product_name":product_name,
+            "cve":cve,"sbom_match":sbom_match,"conflict_info":conflict_info,
+            "decision_proposal":decision_proposal,"partial_audit_trail":engine.get_audit_trail()}
+
+def complete_pipeline(pre, reviewer_name, reviewer_action, override_decision, notes):
+    engine=st.session_state.engine
+    review_result=engine.human_review(pre["decision_proposal"],reviewer_action)
+    review_result["reviewer"]=reviewer_name or "Compliance Officer"
+    review_result["justification"]=notes or review_result["justification"]
+    if override_decision: review_result["final_decision_type"]=override_decision
+    enisa_result=engine.enisa_submit(review_result,pre["cve"],pre["product_name"])
+    results={**pre,"review_result":review_result,"enisa_result":enisa_result,"audit_trail":engine.get_audit_trail()}
+    st.session_state.runs_log.append({"scenario":pre["scenario_name"].split(":")[0].split("：")[0],
+        "decision":review_result["final_decision_type"],"product":pre["product_name"],
+        "ts":datetime.now().strftime("%H:%M:%S")})
+    return results
+
+def run_pipeline(scenario_key, product_name):
+    engine=st.session_state.engine; engine.reset_audit_trail()
+    scenario=CVE_SCENARIOS[scenario_key]; cve_id=scenario["cve_id"]
+    with st.spinner(t("spin1")):
+        cve=engine.ingest_cve(cve_id,scenario_key); st.success(t("spin1_ok",cve_id=cve_id))
+    with st.spinner(t("spin2")):
+        sbom_match=engine.match_sbom(cve,product_name); st.success(t("spin2_ok",reason=sbom_match["match_reason"]))
+    with st.spinner(t("spin3")):
+        conflict_info=engine.detect_conflicts(cve,sbom_match,scenario_key)
+        st.warning(t("spin3_conflict",type=conflict_info["conflict_type"])) if conflict_info["conflict_detected"] else st.success(t("spin3_ok"))
+    with st.spinner(t("spin4")):
+        decision_proposal=engine.propose_decision(cve,sbom_match,conflict_info,scenario_key)
+        st.success(t("spin4_ok",decision=decision_proposal["decision_type"],conf=f"{decision_proposal['confidence_score']:.0%}"))
+    with st.spinner(t("spin5")):
+        review_result=engine.human_review(decision_proposal,"APPROVE"); st.success(t("spin5_ok"))
+    with st.spinner(t("spin6")):
+        enisa_result=engine.enisa_submit(review_result,cve,product_name); st.success(t("spin6_ok",status=enisa_result["status"]))
+    results={"scenario_key":scenario_key,"scenario_name":scenario["name"],"product_name":product_name,
+             "cve":cve,"sbom_match":sbom_match,"conflict_info":conflict_info,"decision_proposal":decision_proposal,
+             "review_result":review_result,"enisa_result":enisa_result,"audit_trail":engine.get_audit_trail()}
+    st.session_state.runs_log.append({"scenario":scenario["name"].split(":")[0].split("：")[0],
+        "decision":review_result["final_decision_type"],"product":product_name,"ts":datetime.now().strftime("%H:%M:%S")})
+    return results
+
+# ============= SIDEBAR =============
+
+with st.sidebar:
+    # Language toggle
     lc1, lc2 = st.columns(2)
     with lc1:
-        if st.button("🇺🇸", use_container_width=True,
-                     type="primary" if not ja else "secondary", help="English"):
+        if st.button("🇺🇸 EN", use_container_width=True,
+                     type="primary" if not ja else "secondary"):
             st.session_state.lang = "en"; st.rerun()
     with lc2:
-        if st.button("🇯🇵", use_container_width=True,
-                     type="primary" if ja else "secondary", help="日本語"):
+        if st.button("🇯🇵 JP", use_container_width=True,
+                     type="primary" if ja else "secondary"):
             st.session_state.lang = "ja"; st.rerun()
 
+    st.markdown("---")
+    st.header(t("sidebar_scenarios"))
+
+    selected_scenario = st.selectbox(
+        t("sidebar_choose"),
+        options=list(CVE_SCENARIOS.keys()),
+        format_func=lambda k: t(f"scenario_{k}_name"),
+        key="scenario_selector"
+    )
+
+    s = CVE_SCENARIOS[selected_scenario]
+    sev_icon = {"CRITICAL":"🔴","HIGH":"🟠","MEDIUM":"🟡","LOW":"🟢"}.get(s["severity"],"⚪")
+    human_flag = t("sidebar_human_flag") if s.get("human_review_required") else ""
+    st.markdown(f"> **CVE:** `{s['cve_id']}`\n> **{t('metric_severity')}:** {sev_icon} {s['severity']} (CVSS {s['cvss_score']})\n{human_flag}")
+
+    st.markdown("---")
+    st.header(t("sidebar_product_header"))
+    product_names = list(PRODUCTS.keys())
+    default_idx = {"scenario_a":1,"scenario_b":0,"scenario_c":2,"scenario_d":2}.get(selected_scenario,0)
+    selected_product = st.selectbox(t("sidebar_product_label"), product_names, index=default_idx)
+
+    prod = PRODUCTS[selected_product]
+    with st.expander(t("sidebar_sbom_expander", n=len(prod["sbom"]["components"]))):
+        for c in prod["sbom"]["components"]:
+            st.caption(f"• {c['name']} v{c['version']} ({c['vendor']})")
+
+    st.markdown("---")
+    run_btn = st.button(t("sidebar_run_btn"), use_container_width=True, type="primary")
+    if run_btn:
+        st.session_state.pipeline_phase = "idle"
+        st.session_state.pre_review = None
+        st.session_state.pipeline_results = None
+        if CVE_SCENARIOS[selected_scenario].get("human_review_required"):
+            st.session_state.pre_review = run_stages_1_to_4(selected_scenario, selected_product)
+            st.session_state.pipeline_phase = "awaiting_human"
+        else:
+            st.session_state.pipeline_results = run_pipeline(selected_scenario, selected_product)
+            st.session_state.pipeline_phase = "complete"
+
+    if st.session_state.runs_log:
+        st.markdown("---")
+        st.header(t("sidebar_stats_header"))
+        log = st.session_state.runs_log
+        decisions = [r["decision"] for r in log]
+        st.metric(t("sidebar_stats_runs"), len(log))
+        st.metric(t("sidebar_stats_report"), decisions.count("REPORT"))
+        st.metric(t("sidebar_stats_not_report"), decisions.count("NOT_REPORT"))
+        with st.expander(t("sidebar_run_history")):
+            for r in reversed(log):
+                st.caption(f"`{r['ts']}` {r['scenario']} → **{r['decision']}**")
+
+    st.markdown("---")
+    st.caption("📚 History · 📖 Scenarios" if not ja else "📚 履歴 · 📖 シナリオ解説")
+    st.caption("← " + ("上のメニューから各ページへ移動" if ja else "Use the pages above to navigate"))
+
+# ============= MAIN AREA =============
+
+# ---- Header ----
+st.title(f"🔐 {t('app_title')}")
+st.markdown(f"**{t('app_subtitle')}**")
 st.markdown("---")
 
-# ============= CRA READINESS STATUS BAR =============
+# If pipeline results or human review are active, show those FIRST
+if st.session_state.pipeline_phase == "awaiting_human" and st.session_state.pre_review:
+    pre = st.session_state.pre_review
+    proposal = pre["decision_proposal"]
 
-st.markdown(
-    f'<div class="divider-lbl"><span>{"⚙️ CRAコンプライアンス準備状況" if ja else "⚙️ CRA Compliance Readiness"}</span></div>',
-    unsafe_allow_html=True
-)
+    st.warning(t("hr_paused"))
+    st.markdown(t("section_pipeline")); pipeline_stepper(completed=4); st.markdown("---")
 
-stage_labels_en = ["CVE Ingestion", "SBOM Matching", "Conflict Detection", "Decision Rules", "Human Review", "ENISA Reporting"]
-stage_labels_ja = ["CVE取込", "SBOM照合", "矛盾検出", "決定ルール", "人的レビュー", "ENISA報告"]
-stage_labels = stage_labels_ja if ja else stage_labels_en
+    col1,col2,col3,col4=st.columns(4)
+    col1.metric(t("metric_cve"),pre["cve"]["cve_id"]); col2.metric(t("metric_cvss"),pre["cve"]["cvss_score"])
+    col3.metric(t("metric_severity"),pre["cve"]["severity"])
+    col4.metric(t("metric_confidence"),f"{proposal['confidence_score']:.0%}",delta=t("hr_below_threshold"))
 
+    st.markdown("---"); st.subheader(t("hr_evidence"))
+    ev_col,gauge_col=st.columns([2,1])
+    with ev_col:
+        with st.container(border=True):
+            st.markdown(t("hr_why"))
+            for rule in proposal["rules_fired"]:
+                if rule["triggered"]: st.markdown(f"- **{rule['rule']}**"); st.caption(rule["reasoning"])
+        st.markdown(t("hr_evidence_sources"))
+        for ev in pre["conflict_info"]["evidence_summary"]: st.markdown(f"- {ev}")
+    with gauge_col:
+        st.plotly_chart(cvss_gauge(pre["cve"]["cvss_score"]),use_container_width=True)
+
+    match=pre["sbom_match"]; st.markdown(t("hr_sbom_analysis"))
+    df=sbom_table(pre["product_name"],match.get("matching_component"),match["match_found"])
+    st.dataframe(df.style.map(lambda v:"background-color:#fff5f5" if t("t2_vulnerable") in str(v) else "",subset=[t("t2_col_status")]),use_container_width=True,hide_index=True)
+
+    st.markdown("---"); st.subheader(t("hr_stage5")); st.markdown(t("hr_intro"))
+    with st.form("human_review_form"):
+        reviewer_name=st.text_input(t("hr_reviewer_label"),placeholder=t("hr_reviewer_placeholder"))
+        st.markdown(t("hr_assessment"))
+        notes=st.text_area(t("hr_notes_label"),placeholder=t("hr_notes_placeholder"),height=110)
+        st.markdown(t("hr_select_decision"))
+        dc1,dc2,dc3=st.columns(3)
+        with dc1: approve_report=st.form_submit_button(t("hr_btn_report"),use_container_width=True,type="primary")
+        with dc2: approve_not_report=st.form_submit_button(t("hr_btn_not_report"),use_container_width=True)
+        with dc3: escalate=st.form_submit_button(t("hr_btn_escalate"),use_container_width=True)
+    if approve_report or approve_not_report or escalate:
+        if not reviewer_name.strip(): st.error(t("hr_err_name"))
+        elif not notes.strip(): st.error(t("hr_err_notes"))
+        else:
+            if approve_report: action,override,label="APPROVE","REPORT","REPORT"
+            elif approve_not_report: action,override,label="APPROVE","NOT_REPORT","NOT_REPORT"
+            else: action,override,label="APPROVE","CONFLICT","ESCALATED"
+            with st.spinner(t("hr_completing")):
+                results=complete_pipeline(pre,reviewer_name,action,override,notes)
+            st.session_state.pipeline_results=results; st.session_state.pipeline_phase="complete"
+            st.success(t("hr_done",label=label,name=reviewer_name)); st.rerun()
+
+elif st.session_state.pipeline_results:
+    results = st.session_state.pipeline_results
+    final = results["review_result"]["final_decision_type"]
+    st.markdown(f"{t('section_decision_banner')} {decision_badge(final)}", unsafe_allow_html=True)
+
+    col1,col2,col3,col4,col5=st.columns(5)
+    col1.metric(t("metric_scenario"),results["scenario_name"].split(":")[0].split("：")[0])
+    col2.metric(t("metric_product"),results["product_name"])
+    col3.metric(t("metric_cve"),results["cve"]["cve_id"])
+    col4.metric(t("metric_cvss"),results["cve"]["cvss_score"])
+    col5.metric(t("metric_severity"),results["cve"]["severity"])
+
+    st.markdown("---"); st.markdown(t("section_pipeline")); pipeline_stepper(completed=6); st.markdown("---")
+
+    tab1,tab2,tab3,tab4,tab5,tab6,tab7=st.tabs([t("tab_ingest"),t("tab_sbom"),t("tab_conflict"),t("tab_rules"),t("tab_review"),t("tab_enisa"),t("tab_artifacts")])
+
+    with tab1:
+        st.subheader(t("t1_header"))
+        c1,c2=st.columns([1,2])
+        with c1: st.plotly_chart(cvss_gauge(results["cve"]["cvss_score"]),use_container_width=True)
+        with c2:
+            st.markdown(t("t1_description")); st.info(cve_desc(results["scenario_key"]))
+            a,b,c=st.columns(3)
+            a.metric(t("metric_cve"),results["cve"]["cve_id"]); b.metric(t("metric_severity"),results["cve"]["severity"])
+            c.metric(t("metric_exploit"),("YES ⚠️" if results["cve"]["exploit_available"] else "NO ✅") if not ja else ("あり ⚠️" if results["cve"]["exploit_available"] else "なし ✅"))
+            st.markdown(f"{t('t1_affected_range')} `{results['cve']['affected_versions']['range_start']}` → `{results['cve']['affected_versions']['range_end']}`")
+
+    with tab2:
+        st.subheader(t("t2_header")); match=results["sbom_match"]
+        a,b,c=st.columns(3)
+        a.metric(t("metric_product"),match["product_name"]); b.metric(t("metric_match_confidence"),f"{match['match_confidence']:.0%}")
+        c.metric(t("metric_component_found"),("YES 🔴" if match["matching_component"] else "NO 🟢") if not ja else ("あり 🔴" if match["matching_component"] else "なし 🟢"))
+        st.error(t("t2_vuln",reason=match["match_reason"])) if match["match_found"] else st.success(t("t2_safe",reason=match["match_reason"]))
+        st.markdown(t("t2_sbom_table"))
+        df=sbom_table(results["product_name"],match.get("matching_component"),match["match_found"])
+        st.dataframe(df.style.map(lambda v:"background-color:#fff5f5" if t("t2_vulnerable") in str(v) else "",subset=[t("t2_col_status")]),use_container_width=True,hide_index=True)
+
+    with tab3:
+        st.subheader(t("t3_header")); conflict=results["conflict_info"]
+        if conflict["conflict_detected"]:
+            st.warning(t("t3_conflict",type=conflict["conflict_type"]))
+            c1,c2=st.columns(2)
+            with c1: st.markdown(t("t3_evidence")); [st.markdown(f"- {ev}") for ev in conflict["evidence_summary"]]
+            with c2:
+                if conflict.get("vex_available"): st.info(t("t3_vex"))
+        else:
+            st.success(t("t3_no_conflict")); [st.markdown(f"- {ev}") for ev in conflict["evidence_summary"]]
+        with st.expander(t("t3_raw")): st.json(conflict)
+
+    with tab4:
+        st.subheader(t("t4_header")); decision=results["decision_proposal"]
+        a,b,c=st.columns(3)
+        a.metric(t("metric_proposed"),decision["decision_type"]); b.metric(t("metric_match_confidence"),f"{decision['confidence_score']:.0%}")
+        c.metric(t("metric_auto_decidable"),t("t4_yes_auto") if decision["auto_decidable"] else t("t4_no_auto"))
+        cc,cr=st.columns([1,1])
+        with cc: st.plotly_chart(rule_confidence_chart(decision["rules_fired"]),use_container_width=True)
+        with cr:
+            st.markdown(t("t4_rules_eval"))
+            for rule in decision["rules_fired"]:
+                with st.container(border=True):
+                    st.markdown(f"**{rule['rule']}** — {t('t4_triggered') if rule['triggered'] else t('t4_not_triggered')}")
+                    st.caption(rule["reasoning"])
+        weighting=decision["evidence_weighting"]
+        ew_df=pd.DataFrame({t("t4_ev_sbom"):[weighting["sbom_confidence"]],t("t4_ev_nvd"):[weighting["cve_data_confidence"]],t("t4_ev_vex"):[weighting["vex_confidence"]]}).T.reset_index()
+        ew_df.columns=["Source","Confidence"]
+        fig_ew=px.bar(ew_df,x="Source",y="Confidence",color="Confidence",color_continuous_scale=["#f8d7da","#fff3cd","#d4edda"],range_y=[0,1],text_auto=".0%")
+        fig_ew.update_layout(height=220,margin=dict(t=40,b=20,l=20,r=20),showlegend=False); fig_ew.update_yaxes(tickformat=".0%")
+        st.plotly_chart(fig_ew,use_container_width=True)
+
+    with tab5:
+        st.subheader(t("t5_header")); review=results["review_result"]
+        a,b,c=st.columns(3)
+        a.metric(t("metric_reviewer"),review["reviewer"]); b.metric(t("metric_action"),review["action"]); c.metric(t("metric_decision_id"),review["decision_id"][:12]+"…")
+        st.markdown(t("t5_justification")); st.info(review["justification"])
+        st.markdown(t("t5_final")); st.markdown(decision_badge(review["final_decision_type"]),unsafe_allow_html=True)
+
+    with tab6:
+        st.subheader(t("t6_header")); enisa=results["enisa_result"]
+        c1,c2=st.columns(2)
+        with c1:
+            st.metric(t("metric_status"),enisa["status"])
+            st.metric(t("metric_submitted"),("YES ✅" if enisa["submitted"] else "NO") if not ja else ("あり ✅" if enisa["submitted"] else "なし"))
+        with c2:
+            if enisa["submitted"]:
+                st.success(t("t6_ref",ref=enisa["enisa_reference_id"])); st.caption(t("t6_submitted_at",ts=enisa["submission_timestamp"])); st.markdown(t("t6_sla"))
+            else: st.info(t("t6_no_submit"))
+        with st.expander(t("t6_payload_preview")):
+            st.json(generate_enisa_submission_json(decision=results["review_result"],cve=results["cve"],product_name=results["product_name"],sbom_match=results["sbom_match"],submission_id=results["enisa_result"]["submission_id"]))
+
+    with tab7:
+        st.subheader(t("t7_header"))
+        html_report=generate_compliance_artifact_html(decision_id=results["review_result"]["decision_id"],cve=results["cve"],product_name=results["product_name"],sbom_match=results["sbom_match"],decision=results["review_result"],audit_trail=results["audit_trail"])
+        enisa_json=generate_enisa_submission_json(decision=results["review_result"],cve=results["cve"],product_name=results["product_name"],sbom_match=results["sbom_match"],submission_id=results["enisa_result"]["submission_id"])
+        c1,c2=st.columns(2)
+        with c1:
+            st.markdown(t("t7_html_title")); st.caption(t("t7_html_caption"))
+            st.download_button(t("t7_html_btn"),html_report,f"CRA-{results['cve']['cve_id']}.html","text/html",use_container_width=True)
+        with c2:
+            st.markdown(t("t7_json_title")); st.caption(t("t7_json_caption"))
+            st.download_button(t("t7_json_btn"),json.dumps(enisa_json,indent=2),f"ENISA-{results['cve']['cve_id']}.json","application/json",use_container_width=True)
+
+    st.markdown("---"); st.header(t("section_audit")); st.caption(t("section_audit_caption"))
+    audit_df=pd.DataFrame(results["audit_trail"])
+    if not audit_df.empty:
+        audit_df["timestamp"]=pd.to_datetime(audit_df["timestamp"])
+        for _,row in audit_df.iterrows():
+            action=str(row.get("action",""))
+            badge_cls="audit-stage" if any(k in action for k in ["CVE","SBOM","Stage"]) else "audit-decision" if "DECISION" in action else "audit-conflict"
+            st.markdown(f'`{row["timestamp"].strftime("%H:%M:%S")}` &nbsp; <span class="audit-badge {badge_cls}">{action}</span> &nbsp; {row.get("details","")}',unsafe_allow_html=True)
+
+    st.markdown("---")
+
+# ---- Dashboard overview (always shown below results) ----
+
+runs = st.session_state.runs_log
+
+st.markdown("### " + ("📊 システム概要" if ja else "📊 System Overview"))
+
+# CRA Readiness
+stage_labels = ["CVE取込","SBOM照合","矛盾検出","決定ルール","人的レビュー","ENISA報告"] if ja else ["CVE Ingestion","SBOM Matching","Conflict Detection","Decision Rules","Human Review","ENISA Reporting"]
 cols = st.columns(6)
 for col, label in zip(cols, stage_labels):
     with col:
-        st.markdown(
-            f'<div class="ready-pill"><div class="ready-dot"></div>{label}</div>',
-            unsafe_allow_html=True
-        )
+        st.markdown(f'<div class="ready-pill"><div class="ready-dot"></div>{label}</div>', unsafe_allow_html=True)
+st.caption("✅ " + ("全6ステージ稼働中" if ja else "All 6 stages operational"))
+st.markdown("---")
 
-st.markdown("<div style='margin-top:6px'></div>", unsafe_allow_html=True)
-ready_label = "✅ システム準備完了 — 全6ステージが設定済みで稼働中" if ja else "✅ System ready — all 6 pipeline stages configured and operational"
-st.caption(ready_label)
+# KPIs
+k1,k2,k3,k4,k5=st.columns(5)
+k1.metric("🏭 "+("対象製品" if ja else "Products"),len(PRODUCTS))
+k2.metric("📏 "+("決定ルール" if ja else "Rules"),len(DECISION_RULES))
+k3.metric("🗂️ "+("シナリオ" if ja else "Scenarios"),len(CVE_SCENARIOS))
+k4.metric("▶️ "+("実行済み" if ja else "Runs"),len(runs))
+report_count=sum(1 for r in runs if r["decision"]=="REPORT")
+k5.metric("🔴 REPORT",report_count,delta=f"+{report_count}" if report_count else None,delta_color="inverse" if report_count else "off")
 
 st.markdown("---")
 
-# ============= KPI ROW =============
+# Session stats + products
+stat_col, prod_col = st.columns([2, 3], gap="large")
 
-st.markdown(
-    f'<div class="divider-lbl"><span>{"📊 システム概要" if ja else "📊 System Overview"}</span></div>',
-    unsafe_allow_html=True
-)
-
-runs = st.session_state.runs_log
-k1, k2, k3, k4, k5 = st.columns(5)
-k1.metric("🏭 " + ("対象製品" if ja else "Products in Scope"),    len(PRODUCTS))
-k2.metric("📏 " + ("決定ルール" if ja else "Decision Rules"),     len(DECISION_RULES))
-k3.metric("🗂️ " + ("デモシナリオ" if ja else "Demo Scenarios"),  len(CVE_SCENARIOS))
-k4.metric("▶️ " + ("実行済みシナリオ" if ja else "Scenarios Run"), len(runs))
-report_count = sum(1 for r in runs if r["decision"] == "REPORT")
-k5.metric("🔴 REPORT " + ("決定数" if ja else "decisions"), report_count,
-          delta=f"+{report_count}" if report_count else None,
-          delta_color="inverse" if report_count else "off")
-
-st.markdown("---")
-
-# ============= MAIN BODY: Stats + Navigation =============
-
-st.markdown(
-    f'<div class="divider-lbl"><span>{"🔍 セッション統計 & ナビゲーション" if ja else "🔍 Session Statistics & Navigation"}</span></div>',
-    unsafe_allow_html=True
-)
-
-stats_col, nav_col = st.columns([3, 2], gap="large")
-
-with stats_col:
+with stat_col:
+    st.markdown("#### " + ("セッション決定内訳" if ja else "Session Decision Breakdown"))
     if not runs:
-        st.info(
-            "まだシナリオは実行されていません。左サイドバーの **🔬 パイプライン** ページに移動して開始してください。" if ja else
-            "No scenarios run yet. Navigate to the **🔬 Pipeline** page in the sidebar to get started."
-        )
-
-        # Show what the stats will look like
-        example_df = pd.DataFrame({
-            ("決定タイプ" if ja else "Decision"): ["REPORT", "NOT_REPORT", "CONFLICT / ESCALATED"],
-            ("件数" if ja else "Count"): [0, 0, 0]
-        })
-        st.dataframe(example_df, use_container_width=True, hide_index=True)
-
+        st.info("👈 " + ("サイドバーからシナリオを実行してください" if ja else "Run a scenario from the sidebar to see stats"))
     else:
-        # Donut chart
-        from collections import Counter
-        decision_counts = Counter(r["decision"] for r in runs)
-        labels = list(decision_counts.keys())
-        values = list(decision_counts.values())
-        color_map = {"REPORT": "#ff4b4b", "NOT_REPORT": "#21c354",
-                     "CONFLICT": "#ffa500", "ESCALATED": "#7c3aed"}
-        colors = [color_map.get(l, "#aaa") for l in labels]
-
+        counts = Counter(r["decision"] for r in runs)
         fig = go.Figure(go.Pie(
-            labels=labels, values=values, hole=0.55,
-            marker=dict(colors=colors),
-            textinfo="label+percent",
-            hovertemplate="%{label}: %{value} run(s)<extra></extra>"
+            labels=list(counts.keys()), values=list(counts.values()), hole=0.55,
+            marker=dict(colors=[{"REPORT":"#ff4b4b","NOT_REPORT":"#21c354","CONFLICT":"#ffa500","ESCALATED":"#7c3aed"}.get(l,"#aaa") for l in counts]),
+            textinfo="label+percent"
         ))
-        fig.update_layout(
-            title=("決定内訳" if ja else "Decision Breakdown"),
-            height=280, margin=dict(t=40, b=10, l=10, r=10),
-            showlegend=False
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        fig.update_layout(title=("決定内訳" if ja else "Decisions"),height=260,margin=dict(t=40,b=10,l=10,r=10),showlegend=False)
+        st.plotly_chart(fig,use_container_width=True)
 
-        # Run log table
-        run_df = pd.DataFrame([
-            {
-                ("時刻" if ja else "Time"): r["ts"],
-                ("シナリオ" if ja else "Scenario"): r["scenario"],
-                ("製品" if ja else "Product"): r["product"],
-                ("決定" if ja else "Decision"): r["decision"],
-            }
-            for r in reversed(runs)
-        ])
-        dec_col = "決定" if ja else "Decision"
-        def _color(val):
-            return {"REPORT":"background-color:#fff5f5","NOT_REPORT":"background-color:#f0fff4",
-                    "CONFLICT":"background-color:#fff8ec","ESCALATED":"background-color:#fdf4ff"}.get(val,"")
-        st.dataframe(run_df.style.map(_color, subset=[dec_col]),
-                     use_container_width=True, hide_index=True)
-
-with nav_col:
-    nav_items = [
-        ("🔬", ("決定パイプライン" if ja else "Decision Pipeline"),
-         ("シナリオを選択し、6ステージの意思決定プロセスを実行します。" if ja else "Select a scenario and run the 6-stage decision process."),
-         "pages/0_🔬_Pipeline.py"),
-        ("📚", ("履歴 & 概要" if ja else "History & Overview"),
-         ("全シナリオ、実行履歴、製品SBOMの概要を表示します。" if ja else "View all scenarios, run history, and product SBOM overview."),
-         "pages/1_📚_History.py"),
-        ("📖", ("シナリオ解説" if ja else "Scenario Explanations"),
-         ("各シナリオの目的・決定ロジック・CRA関連性を解説します。" if ja else "Detailed walkthrough of each scenario's logic and CRA relevance."),
-         "pages/2_📖_Scenarios.py"),
-    ]
-    for icon, title, desc, _page in nav_items:
-        with st.container(border=True):
-            nc1, nc2 = st.columns([1, 4])
-            with nc1:
-                st.markdown(f"<div style='font-size:2rem;padding-top:4px'>{icon}</div>", unsafe_allow_html=True)
-            with nc2:
-                st.markdown(f"**{title}**")
-                st.caption(desc)
-                st.caption("👈 " + ("左のサイドバーから移動してください" if ja else "Select from the left sidebar to open"))
+with prod_col:
+    st.markdown("#### " + ("🏭 J-TEC 製品" if ja else "🏭 J-TEC Products"))
+    pc = st.columns(3)
+    colors=[("#6366f1","#f5f3ff"),("#0ea5e9","#f0f9ff"),("#10b981","#f0fdf4")]
+    for col,(pname,p),(clr,bg) in zip(pc,PRODUCTS.items(),colors):
+        with col:
+            comps=p["sbom"]["components"]
+            st.markdown(f"""<div style="border-radius:10px;padding:14px;border-left:5px solid {clr};background:{bg}">
+                <div style="font-weight:800;font-size:0.95rem">{pname}</div>
+                <div style="font-size:0.78rem;color:#555;margin-top:2px">{p['type']}</div>
+                <div style="font-size:0.76rem;color:#888;margin-top:4px">v{p['version']} · {len(comps)} {"コンポーネント" if ja else "components"}</div>
+            </div>""",unsafe_allow_html=True)
+            with st.expander("SBOM"):
+                for c in comps:
+                    st.caption(f"• **{c['name']}** v{c['version']}")
 
 st.markdown("---")
 
-# ============= PRODUCTS AT A GLANCE =============
-
-st.markdown(
-    f'<div class="divider-lbl"><span>{"🏭 J-TEC 製品一覧" if ja else "🏭 J-TEC Products at a Glance"}</span></div>',
-    unsafe_allow_html=True
-)
-
-prod_cols = st.columns(3)
-prod_colors = ["#6366f1", "#0ea5e9", "#10b981"]
-prod_bgs    = ["#f5f3ff",  "#f0f9ff",  "#f0fdf4"]
-
-for col, (pname, p), color, bg in zip(prod_cols, PRODUCTS.items(), prod_colors, prod_bgs):
-    with col:
-        components = p["sbom"]["components"]
-        comp_types = ", ".join(sorted(set(c["type"].capitalize() for c in components)))
-        st.markdown(f"""
-        <div style="border-radius:10px;padding:16px 18px;border-left:5px solid {color};background:{bg};margin-bottom:4px">
-            <div style="font-weight:800;font-size:1rem">{pname}</div>
-            <div style="font-size:0.8rem;color:#555;margin-top:2px">{p['type']}</div>
-            <div style="font-size:0.78rem;color:#888;margin-top:4px">v{p['version']} &nbsp;·&nbsp; {len(components)} {"コンポーネント" if ja else "components"}</div>
-            <div style="font-size:0.76rem;color:#aaa;margin-top:2px">{comp_types}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        with st.expander("SBOM" if not ja else "📦 SBOM詳細"):
-            for c in components:
-                vuln_icon = "⚙️" if c["type"] == "firmware" else "📦" if c["type"] == "library" else "🖥️"
-                st.caption(f"{vuln_icon} **{c['name']}** v{c['version']} — {c['vendor']}")
-
-st.markdown("---")
-
-# ============= DECISION RULES SUMMARY =============
-
-st.markdown(
-    f'<div class="divider-lbl"><span>{"📏 決定ルール概要" if ja else "📏 Decision Rules Summary"}</span></div>',
-    unsafe_allow_html=True
-)
-
+# Decision rules summary
+st.markdown("#### " + ("📏 決定ルール" if ja else "📏 Decision Rules"))
 rule_cols = st.columns(3)
-rule_colors = {
-    "REPORT":      ("#fff5f5", "#ff4b4b"),
-    "NOT_REPORT":  ("#f0fff4", "#21c354"),
-    "CONFLICT":    ("#fff8ec", "#ffa500"),
-    "HUMAN_REVIEW":("#f5f3ff", "#7c3aed"),
-}
-
-for i, rule in enumerate(DECISION_RULES):
-    col = rule_cols[i % 3]
-    bg, accent = rule_colors.get(rule["action"], ("#f9fafb", "#6b7280"))
-    auto_label = ("✅ 自動" if ja else "✅ Auto") if rule["auto_decidable"] else ("👤 人的" if ja else "👤 Human")
-    conf = f"{rule['confidence_boost']:.0%}"
-    with col:
-        st.markdown(f"""
-        <div style="border-radius:8px;padding:12px 14px;background:{bg};border-left:4px solid {accent};margin-bottom:10px">
+rule_colors={"REPORT":("#fff5f5","#ff4b4b"),"NOT_REPORT":("#f0fff4","#21c354"),"CONFLICT":("#fff8ec","#ffa500"),"HUMAN_REVIEW":("#f5f3ff","#7c3aed")}
+for i,rule in enumerate(DECISION_RULES):
+    bg,accent=rule_colors.get(rule["action"],("#f9fafb","#6b7280"))
+    auto_label=("✅ 自動" if ja else "✅ Auto") if rule["auto_decidable"] else ("👤 人的" if ja else "👤 Human")
+    with rule_cols[i%3]:
+        st.markdown(f"""<div style="border-radius:8px;padding:12px 14px;background:{bg};border-left:4px solid {accent};margin-bottom:10px">
             <div style="font-weight:700;font-size:0.88rem">{rule['rule_id']} — {rule['name']}</div>
             <div style="font-size:0.75rem;color:#6b7280;margin-top:4px">{rule['condition']}</div>
-            <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
+            <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
                 <span style="background:{accent};color:white;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:600">{rule['action']}</span>
                 <span style="background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:10px;font-size:0.72rem">{auto_label}</span>
-                <span style="background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:10px;font-size:0.72rem">conf {conf}</span>
+                <span style="background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:10px;font-size:0.72rem">conf {rule['confidence_boost']:.0%}</span>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+        </div>""",unsafe_allow_html=True)
 
 st.markdown("---")
-
-# ============= FOOTER =============
-
-st.markdown(f"<div style='text-align:center;font-size:12px;color:gray;'>🔐 {t('footer')}</div>",
-            unsafe_allow_html=True)
-st.markdown(
-    f"<div style='text-align:center;font-size:11px;color:#aaa;margin-top:8px;"
-    f"border-top:1px solid #eee;padding-top:10px;line-height:1.7;'>{t('legal_declaration')}</div>",
-    unsafe_allow_html=True
-)
+st.markdown(f"<div style='text-align:center;font-size:12px;color:gray;'>🔐 {t('footer')}</div>",unsafe_allow_html=True)
+st.markdown(f"<div style='text-align:center;font-size:11px;color:#aaa;margin-top:8px;border-top:1px solid #eee;padding-top:10px;line-height:1.7;'>{t('legal_declaration')}</div>",unsafe_allow_html=True)
