@@ -6,7 +6,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 from collections import Counter
 
@@ -168,6 +168,72 @@ def confidence_explainer_chart(rules_fired, final_score, threshold=0.80):
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
         title=dict(text="Rule Confidence Breakdown — All 6 Rules", font=dict(size=13, color="#1e293b"))
     )
+    return fig
+
+def cra_deadline_gantt(submission_ts_str, lang="en"):
+    """Plotly Gantt chart for CRA Article 14 deadlines relative to detection time."""
+    try:
+        detect_dt = datetime.fromisoformat(submission_ts_str)
+    except Exception:
+        detect_dt = datetime.now()
+
+    now = datetime.now()
+    labels_en = ["🟡 Early Warning (24h)", "🟠 Full Notification (72h)", "📋 Final Report (90 days)"]
+    labels_ja = ["🟡 早期警告 (24h)", "🟠 完全通知 (72h)", "📋 最終報告 (90日)"]
+    labels = labels_ja if lang == "ja" else labels_en
+    end_deltas = [timedelta(hours=24), timedelta(hours=72), timedelta(days=90)]
+    colors = ["#fde68a", "#fed7aa", "#dbeafe"]
+    bar_colors = ["#ca8a04", "#d97706", "#1e40af"]
+
+    fig = go.Figure()
+    for i, (lbl, delta, bg, fg) in enumerate(zip(labels, end_deltas, colors, bar_colors)):
+        end_dt = detect_dt + delta
+        elapsed_h = (now - detect_dt).total_seconds() / 3600
+        total_h   = delta.total_seconds() / 3600
+        pct_done  = min(elapsed_h / total_h, 1.0)
+        done_end  = detect_dt + timedelta(seconds=min((now - detect_dt).total_seconds(), delta.total_seconds()))
+        status = "OVERDUE ⚠️" if now > end_dt else f"{pct_done:.0%} elapsed"
+        # Background bar (total period)
+        fig.add_trace(go.Bar(
+            y=[lbl], x=[delta.total_seconds() / 3600],
+            base=[0], orientation="h",
+            marker=dict(color=bg, line=dict(width=1, color="#e2e8f0")),
+            showlegend=False, hoverinfo="skip", name=""
+        ))
+        # Progress bar (elapsed)
+        fig.add_trace(go.Bar(
+            y=[lbl], x=[min(elapsed_h, total_h)],
+            base=[0], orientation="h",
+            marker=dict(color=fg + "99"),
+            showlegend=False,
+            hovertemplate=f"<b>{lbl}</b><br>Deadline: {end_dt.strftime('%Y-%m-%d %H:%M')}<br>Status: {status}<extra></extra>",
+            name=""
+        ))
+
+    # "Now" vertical line (hours since detection)
+    now_h = (now - detect_dt).total_seconds() / 3600
+    fig.add_vline(x=max(now_h, 0.5), line_color="#dc2626", line_width=2, line_dash="solid",
+                  annotation_text=("現在" if lang == "ja" else "NOW"),
+                  annotation_position="top left",
+                  annotation_font=dict(color="#dc2626", size=11, family="sans-serif"))
+    # SLA markers
+    fig.add_vline(x=24,   line_color="#ca8a04", line_width=1, line_dash="dot")
+    fig.add_vline(x=72,   line_color="#d97706", line_width=1, line_dash="dot")
+    fig.add_vline(x=2160, line_color="#1e40af", line_width=1, line_dash="dot")  # 90 days
+
+    fig.update_layout(
+        barmode="overlay", height=220,
+        margin=dict(t=40, b=20, l=10, r=20),
+        xaxis=dict(title=("経過時間（時間）" if lang == "ja" else "Hours since detection"),
+                   showgrid=True, gridcolor="#f1f5f9"),
+        yaxis=dict(showgrid=False),
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        title=dict(text=("CRA 第14条 規制スケジュール" if lang == "ja" else "CRA Article 14 Regulatory Schedule"),
+                   font=dict(size=13, color="#1e293b"))
+    )
+    # Log-scale makes 24h/72h/90d all visible on the same axis
+    fig.update_xaxes(type="log", tickvals=[1, 6, 24, 72, 168, 720, 2160],
+                     ticktext=["1h", "6h", "24h", "72h", "7d", "30d", "90d"])
     return fig
 
 def cve_desc(scenario_key):
@@ -733,6 +799,17 @@ elif st.session_state.pipeline_results:
                           <div style="font-weight:700;font-size:0.82rem;color:{color};margin-top:4px">{title}</div>
                           <div style="font-size:0.72rem;color:#6b7280;margin-top:3px">{desc}</div>
                         </div>""", unsafe_allow_html=True)
+
+                # ── Regulatory Deadline Calendar ──
+                st.markdown("---")
+                st.markdown("##### 📅 " + ("CRA 第14条 規制スケジュール" if ja else "CRA Article 14 Regulatory Schedule"))
+                st.caption("🔴 " + ("赤い縦線 = 現在時刻　| 各バーは24h / 72h / 90日の提出期限を示します。" if ja
+                                    else "Red vertical line = NOW  |  Bars show 24h early warning / 72h full notification / 90-day final report deadlines."))
+                st.plotly_chart(
+                    cra_deadline_gantt(enisa.get("submission_timestamp", datetime.now().isoformat()),
+                                       lang="ja" if ja else "en"),
+                    use_container_width=True
+                )
 
                 st.markdown("")
                 if st.button("🔄 " + ("新しいシミュレーションを開始" if ja else "Run New Simulation"),
