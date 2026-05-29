@@ -16,6 +16,7 @@ from enisa_reporter import (generate_enisa_submission_json, generate_compliance_
 from utils import (inject_css, lang_toggle_sidebar, sidebar_current_run,
                    sidebar_home_button, no_results_guard,
                    pipeline_stepper, decision_badge, cra_deadline_gantt)
+from readiness_widgets import render_key_stage_badge, render_stage_insights, render_personalized_cta, sidebar_readiness_score
 
 st.set_page_config(
     page_title="Act 3: Reporting — CRA System",
@@ -39,6 +40,7 @@ with st.sidebar:
     st.page_link("pages/2_Decision.py",   label="⚖️ " + ("Act 2 — 判定" if ja else "Act 2 — Decision"))
     st.page_link("pages/4_Compliance.py", label="📋 " + ("コンプライアンス" if ja else "Compliance"))
     st.page_link("pages/5_History.py",    label="📚 " + ("履歴" if ja else "History"))
+    sidebar_readiness_score()
     st.markdown("---")
     sidebar_home_button()
 
@@ -79,6 +81,8 @@ st.markdown("---")
 # ═══════════════════════════════════════════════════════
 st.header("🏛️ " + ("ステージ 6 — ENISA 提出シミュレーター"
                     if ja else "Stage 6 — ENISA Submission Simulator"))
+render_key_stage_badge(6)
+render_stage_insights(6)
 
 if final != "REPORT":
     st.info("ℹ️ " + ("ENISA報告義務なし — このケースは自動報告対象外です。"
@@ -398,6 +402,8 @@ if not audit_df.empty:
             f'<span class="audit-badge {badge_cls}">{action}</span>'
             f' &nbsp; {row.get("details", "")}',
             unsafe_allow_html=True)
+
+render_personalized_cta()
 
 st.markdown("---")
 

@@ -10,6 +10,7 @@ from translations import t
 from utils import (inject_css, lang_toggle_sidebar, sidebar_current_run,
                    sidebar_home_button, no_results_guard,
                    pipeline_stepper, cvss_gauge, sbom_table, cve_desc, decision_badge)
+from readiness_widgets import render_key_stage_badge, render_stage_insights, render_personalized_cta, sidebar_readiness_score
 
 st.set_page_config(
     page_title="Act 1: Detection — CRA System",
@@ -33,6 +34,7 @@ with st.sidebar:
     st.page_link("pages/3_Reporting.py",  label="📡 " + ("Act 3 — 報告" if ja else "Act 3 — Reporting"))
     st.page_link("pages/4_Compliance.py", label="📋 " + ("コンプライアンス" if ja else "Compliance"))
     st.page_link("pages/5_History.py",    label="📚 " + ("履歴" if ja else "History"))
+    sidebar_readiness_score()
     st.markdown("---")
     sidebar_home_button()
 
@@ -65,9 +67,11 @@ st.markdown("---")
 #  STAGE 1 — CVE Ingestion
 # ═══════════════════════════════════════════════════════
 st.header("📥 " + ("ステージ 1 — CVE 取込" if ja else "Stage 1 — CVE Ingestion"))
+render_key_stage_badge(1)
 st.caption("" + ("NVDから脆弱性データを取り込み、基本メタデータを検証します。"
                  if ja else
                  "Load vulnerability data from NVD and validate core metadata."))
+render_stage_insights(1)
 
 c1, c2 = st.columns([1, 2])
 with c1:
@@ -92,9 +96,11 @@ st.markdown("---")
 #  STAGE 2 — SBOM Analysis
 # ═══════════════════════════════════════════════════════
 st.header("🔩 " + ("ステージ 2 — SBOM 照合分析" if ja else "Stage 2 — SBOM Match Analysis"))
+render_key_stage_badge(2)
 st.caption("" + ("製品のSBOMコンポーネントとCVEの影響範囲を照合します。"
                  if ja else
                  "Cross-reference the product's SBOM components against the CVE's affected version range."))
+render_stage_insights(2)
 
 match = r["sbom_match"]
 a, b, c = st.columns(3)
@@ -124,9 +130,11 @@ st.markdown("---")
 #  STAGE 3 — Conflict Detection
 # ═══════════════════════════════════════════════════════
 st.header("⚡ " + ("ステージ 3 — 矛盾検出" if ja else "Stage 3 — Conflict Detection"))
+render_key_stage_badge(3)
 st.caption("" + ("VEXステートメントとSBOM照合結果の矛盾を確認します。"
                  if ja else
                  "Check for contradictions between VEX statements and SBOM match results."))
+render_stage_insights(3)
 
 conflict = r["conflict_info"]
 if conflict["conflict_detected"]:
@@ -167,6 +175,8 @@ with st.expander("🗂️ " + ("監査証跡 — ステージ 1-3" if ja else "A
                 f'<span class="audit-badge {badge_cls}">{action}</span>'
                 f' &nbsp; {row.get("details", "")}',
                 unsafe_allow_html=True)
+
+render_personalized_cta()
 
 st.markdown("---")
 

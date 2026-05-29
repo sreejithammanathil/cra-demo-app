@@ -12,6 +12,7 @@ from mock_data import PRODUCTS, CVE_SCENARIOS, DECISION_RULES, THRESHOLDS
 from decision_engine import DecisionEngine
 from translations import t, SCENARIO_JA
 from utils import inject_css, decision_badge, pipeline_stepper, lang_toggle_sidebar, sidebar_current_run, sidebar_home_button
+from readiness_widgets import render_personalized_banner, render_personalized_cta, sidebar_readiness_score
 
 st.set_page_config(
     page_title="CRA Decision Traceability System",
@@ -168,6 +169,7 @@ with st.sidebar:
                 st.caption(f"`{r['ts']}` {r['scenario']} → **{r['decision']}**")
 
     st.markdown("---")
+    sidebar_readiness_score()
     st.page_link("pages/0_Readiness_Check.py",
                  label="🛡️ " + ("CRA準備状況評価" if ja else "CRA Readiness Assessment"))
     sidebar_current_run()
@@ -351,6 +353,9 @@ elif st.session_state.pipeline_phase == "complete" and st.session_state.pipeline
                      label="📋 " + ("報告後の規制ライフサイクルを管理する →" if ja
                                      else "Manage Post-Reporting Compliance Lifecycle →"))
 
+    # ── Personalised CTA (shown if user came from readiness check) ──
+    render_personalized_cta()
+
     st.markdown("---")
 
     # Pipeline stepper (full)
@@ -364,6 +369,9 @@ elif st.session_state.pipeline_phase == "complete" and st.session_state.pipeline
 # ─────────────────────────────────────────────
 
 if st.session_state.pipeline_phase == "idle":
+    # ── Personalized banner (shown when coming from readiness check) ──
+    render_personalized_banner()
+
     _SCEN_INFO = {
         "scenario_a": {
             "color": "#ff4b4b", "bg": "#fff5f5", "icon": "🔴",

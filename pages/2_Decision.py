@@ -12,6 +12,7 @@ from utils import (inject_css, lang_toggle_sidebar, sidebar_current_run,
                    sidebar_home_button, no_results_guard,
                    pipeline_stepper, cvss_gauge, sbom_table, decision_badge,
                    confidence_explainer_chart, complete_pipeline)
+from readiness_widgets import render_key_stage_badge, render_stage_insights, render_personalized_cta, sidebar_readiness_score
 
 st.set_page_config(
     page_title="Act 2: Decision — CRA System",
@@ -35,6 +36,7 @@ with st.sidebar:
     st.page_link("pages/3_Reporting.py",  label="📡 " + ("Act 3 — 報告" if ja else "Act 3 — Reporting"))
     st.page_link("pages/4_Compliance.py", label="📋 " + ("コンプライアンス" if ja else "Compliance"))
     st.page_link("pages/5_History.py",    label="📚 " + ("履歴" if ja else "History"))
+    sidebar_readiness_score()
     st.markdown("---")
     sidebar_home_button()
 
@@ -160,9 +162,11 @@ st.markdown("---")
 #  STAGE 4 — Confidence Score Explainer
 # ═══════════════════════════════════════════════════════
 st.header("🎯 " + ("ステージ 4 — 信頼スコア解説" if ja else "Stage 4 — Confidence Score Explainer"))
+render_key_stage_badge(4)
 st.caption("" + ("どのルールが判定信頼スコアに貢献したかを視覚的に示します。"
                  if ja else
                  "See exactly which rules contributed to the final confidence score and why."))
+render_stage_insights(4)
 
 chart_col, verdict_col = st.columns([3, 2])
 with chart_col:
@@ -245,9 +249,11 @@ st.markdown("---")
 #  STAGE 5 — Human Review Record
 # ═══════════════════════════════════════════════════════
 st.header("👤 " + ("ステージ 5 — 人的審査レコード" if ja else "Stage 5 — Human Review Record"))
+render_key_stage_badge(5)
 st.caption("" + ("コンプライアンス担当者による最終審査の記録です。"
                  if ja else
                  "The compliance officer's final review and decision justification."))
+render_stage_insights(5)
 
 a, b, c = st.columns(3)
 a.metric(t("metric_reviewer"),   review["reviewer"])
@@ -400,6 +406,8 @@ for ch, ccol in zip(_chain, ch_cols):
         </div>""", unsafe_allow_html=True)
 st.caption("ℹ️ " + ("法務責任者の承認後、通知が顧客に送信されます。" if ja else
                     "Notification will be sent to customers once Legal Counsel approves."))
+
+render_personalized_cta()
 
 st.markdown("---")
 

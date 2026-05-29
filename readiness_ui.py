@@ -285,10 +285,83 @@ def display_results(state_key: str) -> None:
 
 
 def display_next_steps(state_key: str) -> None:
-    """Render the lead-capture CTA and restart button."""
+    """Render the personalized-demo CTA, lead-capture form, and restart button."""
     ja = st.session_state.get("lang") == "ja"
-    s = st.session_state[state_key]
+    s  = st.session_state[state_key]
+    result = s.get("score_result", {})
 
+    # ── Feature 1/2 — Personalized Demo CTA ─────────────────────────────────
+    from readiness_bridge import get_scenario_recommendation, get_cta
+    from mock_data import CVE_SCENARIOS
+
+    if result:
+        rec  = get_scenario_recommendation(result)
+        cta  = get_cta(result, "ja" if ja else "en")
+        lvl  = result.get("readiness_level", {})
+        pct  = result.get("percentage", 0)
+        scen_name = CVE_SCENARIOS[rec["scenario_key"]]["name"].split(":")[0].split("：")[0]
+
+        diff_colors = {
+            "beginner": "#16a34a", "intermediate": "#d97706", "advanced": "#7c3aed",
+        }
+        diff_labels_map = {
+            "beginner": ("beginner", "初級"),
+            "intermediate": ("intermediate", "中級"),
+            "advanced": ("advanced", "上級"),
+        }
+        dc = diff_colors.get(rec["difficulty"], "#1e3a8a")
+        dlbl = diff_labels_map.get(rec["difficulty"], ("", ""))[1 if ja else 0]
+
+        st.markdown(f"""
+        <div style="background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%);
+                    border-radius:14px;padding:24px 28px;color:white;margin-bottom:16px">
+          <div style="font-size:0.72rem;font-weight:700;letter-spacing:1.5px;
+                      text-transform:uppercase;color:#bfdbfe;margin-bottom:6px">
+            {"次のステップ" if ja else "YOUR NEXT STEP"}
+          </div>
+          <div style="font-size:1.15rem;font-weight:800;margin-bottom:6px">
+            {rec['title_ja'] if ja else rec['title_en']}
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+            <span style="font-size:0.82rem;color:#bfdbfe">
+              {"推奨シナリオ：" if ja else "Recommended:"}
+            </span>
+            <span style="background:rgba(255,255,255,0.15);border-radius:20px;
+                         padding:3px 12px;font-size:0.8rem;font-weight:700">
+              {scen_name}
+            </span>
+            <span style="background:{dc}33;color:white;border-radius:20px;
+                         padding:3px 10px;font-size:0.72rem;font-weight:700;
+                         border:1px solid {dc}88">
+              {dlbl}
+            </span>
+            <span style="color:#bfdbfe;font-size:0.78rem;flex:1">
+              {rec['reason_ja'][:80] + '…' if ja and len(rec['reason_ja']) > 80
+               else rec['reason_en'][:80] + '…' if not ja and len(rec['reason_en']) > 80
+               else rec['reason_ja'] if ja else rec['reason_en']}
+            </span>
+          </div>
+          <div style="font-size:0.78rem;color:#93c5fd">
+            {cta['offer']} &nbsp;·&nbsp;
+            ~{cta['weeks']} {"週間で100%達成" if ja else "weeks to 100%"}
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if st.button(
+            "🎯 " + ("パーソナライズされたデモを開始する →" if ja
+                     else "Start Your Personalized Demo →"),
+            type="primary",
+            use_container_width=True,
+            key=f"demo_launch_btn_{state_key}",
+        ):
+            st.session_state.readiness_result         = result
+            st.session_state.readiness_recommendation = rec
+            st.switch_page("app.py")
+
+        st.markdown("")
+
+    # ── Lead capture ─────────────────────────────────────────────────────────
     st.subheader(_t("📬 Get Your Free CRA Readiness Report", "📬 無料CRA準備状況レポートを受け取る"))
     st.markdown(_t(
         "Enter your details below to receive a personalised PDF report with your scores, "
