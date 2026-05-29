@@ -113,13 +113,61 @@ def sbom_table(product_name, matching_component, match_found):
                      t("t2_col_status"):t("t2_vulnerable") if is_vuln else t("t2_safe_status")})
     return pd.DataFrame(rows)
 
-def rule_confidence_chart(rules_fired):
-    names=[r["rule"] for r in rules_fired]; triggered=[r["triggered"] for r in rules_fired]
-    fig=px.bar(x=names,y=[1]*len(names),color=triggered,
-               color_discrete_map={True:"#21c354",False:"#e0e0e0"},
-               title="Decision Rules — Triggered / Not Triggered")
-    fig.update_layout(height=220,showlegend=False,margin=dict(t=40,b=60,l=20,r=20),yaxis_visible=False)
-    fig.update_xaxes(tickangle=-20)
+def confidence_explainer_chart(rules_fired, final_score, threshold=0.80):
+    """Horizontal bar chart showing all 6 rules with confidence contributions.
+    Triggered rules shown in navy; non-triggered in light gray.
+    Red dashed threshold line + final score marker."""
+    # Map fired rules back to DECISION_RULES to get confidence_boost for each
+    fired_ids = {}
+    for r in rules_fired:
+        if r["triggered"]:
+            rid = r["rule"].split(":")[0].strip()  # e.g. "R1"
+            fired_ids[rid] = r
+
+    y_labels, x_values, bar_colors, hover_texts = [], [], [], []
+    for rule in DECISION_RULES:
+        rid = rule["rule_id"]
+        short_name = rule["name"] if len(rule["name"]) <= 38 else rule["name"][:36] + "…"
+        label = f"{rid}: {short_name}"
+        boost = rule["confidence_boost"]
+        triggered = rid in fired_ids
+
+        y_labels.append(label)
+        x_values.append(boost if boost > 0 else 0.02)  # tiny bar for R5 (0.0)
+        bar_colors.append("#1e40af" if triggered else "#e2e8f0")
+        hover_texts.append(
+            f"<b>{rid}: {rule['name']}</b><br>"
+            f"Confidence Boost: {boost:.0%}<br>"
+            f"Status: {'✅ TRIGGERED' if triggered else '— Not Triggered'}<br>"
+            f"Action: {rule['action']}"
+        )
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        y=y_labels, x=x_values,
+        orientation="h",
+        marker=dict(color=bar_colors, line=dict(width=0)),
+        hovertext=hover_texts, hoverinfo="text",
+        text=[f"{xv:.0%}" if xv > 0.02 else "0%" for xv in x_values],
+        textposition="inside",
+        textfont=dict(color=["white" if c == "#1e40af" else "#94a3b8" for c in bar_colors], size=11),
+        showlegend=False
+    ))
+    # Auto-decide threshold line
+    fig.add_vline(x=threshold, line_color="#dc2626", line_width=2, line_dash="dot",
+                  annotation_text=f"Threshold {threshold:.0%}", annotation_position="top right",
+                  annotation_font=dict(color="#dc2626", size=11))
+    # Final score line
+    fig.add_vline(x=final_score, line_color="#1e3a8a", line_width=3,
+                  annotation_text=f"Score {final_score:.0%}", annotation_position="bottom right",
+                  annotation_font=dict(color="#1e3a8a", size=12, family="sans-serif"))
+    fig.update_layout(
+        height=310, margin=dict(t=30, b=20, l=10, r=100),
+        xaxis=dict(range=[0, 1.08], tickformat=".0%", title="Confidence Score", showgrid=True, gridcolor="#f1f5f9"),
+        yaxis=dict(autorange="reversed", showgrid=False),
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        title=dict(text="Rule Confidence Breakdown — All 6 Rules", font=dict(size=13, color="#1e293b"))
+    )
     return fig
 
 def cve_desc(scenario_key):
@@ -415,23 +463,81 @@ elif st.session_state.pipeline_results:
 
     with tab4:
         st.subheader(t("t4_header")); decision=results["decision_proposal"]
-        a,b,c=st.columns(3)
-        a.metric(t("metric_proposed"),decision["decision_type"]); b.metric(t("metric_match_confidence"),f"{decision['confidence_score']:.0%}")
+        a,b,c,d_col=st.columns(4)
+        a.metric(t("metric_proposed"),decision["decision_type"])
+        b.metric(t("metric_match_confidence"),f"{decision['confidence_score']:.0%}")
         c.metric(t("metric_auto_decidable"),t("t4_yes_auto") if decision["auto_decidable"] else t("t4_no_auto"))
-        cc,cr=st.columns([1,1])
-        with cc: st.plotly_chart(rule_confidence_chart(decision["rules_fired"]),use_container_width=True)
-        with cr:
-            st.markdown(t("t4_rules_eval"))
-            for rule in decision["rules_fired"]:
-                with st.container(border=True):
-                    st.markdown(f"**{rule['rule']}** — {t('t4_triggered') if rule['triggered'] else t('t4_not_triggered')}")
-                    st.caption(rule["reasoning"])
-        weighting=decision["evidence_weighting"]
-        ew_df=pd.DataFrame({t("t4_ev_sbom"):[weighting["sbom_confidence"]],t("t4_ev_nvd"):[weighting["cve_data_confidence"]],t("t4_ev_vex"):[weighting["vex_confidence"]]}).T.reset_index()
-        ew_df.columns=["Source","Confidence"]
-        fig_ew=px.bar(ew_df,x="Source",y="Confidence",color="Confidence",color_continuous_scale=["#f8d7da","#fff3cd","#d4edda"],range_y=[0,1],text_auto=".0%")
-        fig_ew.update_layout(height=220,margin=dict(t=40,b=20,l=20,r=20),showlegend=False); fig_ew.update_yaxes(tickformat=".0%")
-        st.plotly_chart(fig_ew,use_container_width=True)
+        d_col.metric("🎯 " + ("閾値" if ja else "Auto Threshold"), f"{THRESHOLDS['auto_decide_confidence']:.0%}")
+        st.markdown("---")
+
+        # ── Confidence Score Explainer ──
+        st.markdown("##### 🎯 " + ("信頼スコア解説 — どのルールが判定に貢献したか" if ja else "Confidence Score Explainer — Which rules drove the decision"))
+        expl_chart_col, verdict_col = st.columns([3, 2])
+        with expl_chart_col:
+            st.plotly_chart(confidence_explainer_chart(decision["rules_fired"], decision["confidence_score"], THRESHOLDS["auto_decide_confidence"]), use_container_width=True)
+        with verdict_col:
+            score = decision["confidence_score"]
+            threshold = THRESHOLDS["auto_decide_confidence"]
+            above = score >= threshold
+            verdict_bg   = "#f0fdf4" if above else "#fff7ed"
+            verdict_border = "#16a34a" if above else "#d97706"
+            verdict_icon  = "✅" if above else "👤"
+            verdict_label = ("自動判定" if ja else "AUTO-DECIDED") if above else ("人的レビュー必要" if ja else "HUMAN REVIEW NEEDED")
+            verdict_text  = (f"信頼スコア {score:.0%} が閾値 {threshold:.0%} を上回っています。システムが自動的に判定を確定しました。" if ja
+                             else f"Score {score:.0%} exceeds the auto-decide threshold of {threshold:.0%}. The system confirmed this decision automatically.") if above \
+                            else (f"信頼スコア {score:.0%} が閾値 {threshold:.0%} を下回っています。コンプライアンス担当者の判断が必要です。" if ja
+                                  else f"Score {score:.0%} is below the auto-decide threshold of {threshold:.0%}. A compliance officer must confirm this decision.")
+
+            # Score progress bar HTML
+            bar_pct = int(score * 100)
+            thr_pct = int(threshold * 100)
+            bar_color = "#16a34a" if above else "#d97706"
+            st.markdown(f"""
+            <div style="background:{verdict_bg};border:1px solid {verdict_border};border-radius:10px;padding:16px 18px;margin-top:4px">
+              <div style="font-size:0.85rem;font-weight:700;color:{verdict_border};margin-bottom:8px">{verdict_icon} {verdict_label}</div>
+              <div style="font-size:0.78rem;color:#374151;margin-bottom:12px">{verdict_text}</div>
+              <div style="background:#e2e8f0;border-radius:20px;height:12px;position:relative;overflow:hidden">
+                <div style="background:{bar_color};width:{bar_pct}%;height:100%;border-radius:20px;transition:width 0.5s"></div>
+              </div>
+              <div style="position:relative;height:18px">
+                <div style="position:absolute;left:{thr_pct}%;transform:translateX(-50%);font-size:0.65rem;color:#dc2626;margin-top:2px">▲ {threshold:.0%}</div>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:#6b7280;margin-top:4px">
+                <span>0%</span><span style="font-weight:700;color:{verdict_border}">{score:.0%}</span><span>100%</span>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.markdown("")
+            # Evidence source breakdown
+            weighting = decision["evidence_weighting"]
+            st.markdown(f"**{'📊 証拠信頼度' if ja else '📊 Evidence Confidence'}**")
+            for src, val, icon in [
+                (t("t4_ev_sbom"),  weighting["sbom_confidence"],      "🔩"),
+                (t("t4_ev_nvd"),   weighting["cve_data_confidence"],   "🗄️"),
+                (t("t4_ev_vex"),   weighting["vex_confidence"],        "📋"),
+            ]:
+                w_color = "#16a34a" if val >= 0.8 else "#d97706" if val >= 0.5 else "#94a3b8"
+                st.markdown(f"""<div style="display:flex;justify-content:space-between;align-items:center;
+                    padding:5px 8px;margin-bottom:4px;background:#f8fafc;border-radius:6px;font-size:0.78rem">
+                    <span>{icon} {src}</span>
+                    <span style="font-weight:700;color:{w_color}">{val:.0%}</span>
+                </div>""", unsafe_allow_html=True)
+
+        st.markdown("---")
+        # ── Rule-by-rule detail ──
+        st.markdown(t("t4_rules_eval"))
+        num_triggered = sum(1 for r in decision["rules_fired"] if r["triggered"])
+        for rule in decision["rules_fired"]:
+            icon = "✅" if rule["triggered"] else "⬜"
+            bg   = "#f0fdf4" if rule["triggered"] else "#f8fafc"
+            border = "#16a34a" if rule["triggered"] else "#e2e8f0"
+            st.markdown(f"""<div style="background:{bg};border:1px solid {border};border-radius:8px;
+                padding:10px 14px;margin-bottom:8px">
+                <div style="font-weight:700;font-size:0.85rem">{icon} {rule['rule']} &nbsp;
+                <span style="font-weight:400;color:#6b7280">— {t('t4_triggered') if rule['triggered'] else t('t4_not_triggered')}</span></div>
+                <div style="font-size:0.76rem;color:#4b5563;margin-top:4px">{rule['reasoning']}</div>
+            </div>""", unsafe_allow_html=True)
 
     with tab5:
         st.subheader(t("t5_header")); review=results["review_result"]
