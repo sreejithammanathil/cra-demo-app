@@ -607,10 +607,224 @@ elif st.session_state.pipeline_results:
 
     with tab5:
         st.subheader(t("t5_header")); review=results["review_result"]
+        final_type = review["final_decision_type"]
         a,b,c=st.columns(3)
         a.metric(t("metric_reviewer"),review["reviewer"]); b.metric(t("metric_action"),review["action"]); c.metric(t("metric_decision_id"),review["decision_id"][:12]+"…")
         st.markdown(t("t5_justification")); st.info(review["justification"])
-        st.markdown(t("t5_final")); st.markdown(decision_badge(review["final_decision_type"]),unsafe_allow_html=True)
+        st.markdown(t("t5_final")); st.markdown(decision_badge(final_type),unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # ── Customer Notification Email Preview ──
+        st.markdown("##### 📧 " + ("顧客通知メール — プレビュー & 承認ワークフロー" if ja else "Customer Notification Email — Preview & Approval Workflow"))
+
+        _cve_t  = results["cve"]
+        _prod_t = results["product_name"]
+        _dec_id = review["decision_id"][:16].upper()
+        _now_ts = datetime.now().strftime("%Y-%m-%d %H:%M UTC")
+
+        # Email type selector
+        email_types = (["重大脆弱性アラート", "パッチ適用通知", "インシデント解決通知", "規制報告通知"]
+                       if ja else
+                       ["Critical Vulnerability Alert", "Patch Available Notification",
+                        "Incident Resolved Notification", "Regulatory Filing Notice"])
+        selected_email_type = st.selectbox(
+            "📋 " + ("通知テンプレート" if ja else "Notification Template"),
+            email_types, key="email_type_select"
+        )
+
+        # Generate email body based on selection
+        _email_idx = email_types.index(selected_email_type)
+        if _email_idx == 0:  # Critical alert
+            _subj_en = f"[URGENT] Security Alert — {_cve_t['cve_id']} affects {_prod_t}"
+            _subj_ja = f"【緊急】セキュリティアラート — {_cve_t['cve_id']} が {_prod_t} に影響"
+            _body_en = f"""Dear Customer,
+
+We are writing to inform you of a critical security vulnerability ({_cve_t['cve_id']}) that has been identified in {_prod_t} (CVSS Score: {_cve_t['cvss_score']} — {_cve_t['severity']}).
+
+IMMEDIATE ACTION REQUIRED:
+• This vulnerability is actively exploited in the wild
+• Affected product: {_prod_t}
+• Affected versions: {_cve_t['affected_versions']['range_start']} to {_cve_t['affected_versions']['range_end']}
+
+Our security team has submitted a report to ENISA in accordance with EU Cyber Resilience Act Article 14 obligations (Ref: {_dec_id}).
+
+We are working on a patch and will notify you as soon as it is available. In the meantime, please apply the interim mitigations described in our Security Advisory portal.
+
+If you have any questions, please contact our security team at security@jtec.co.jp.
+
+Regards,
+J-TEC Security Response Team
+{_now_ts}"""
+            _body_ja = f"""お客様各位
+
+{_prod_t}（CVSS: {_cve_t['cvss_score']} — {_cve_t['severity']}）に重大なセキュリティ脆弱性（{_cve_t['cve_id']}）が検出されましたため、緊急のご連絡を差し上げます。
+
+【緊急対応が必要です】
+• 本脆弱性は現在、野外で積極的に悪用されています
+• 影響製品: {_prod_t}
+• 影響バージョン: {_cve_t['affected_versions']['range_start']} ～ {_cve_t['affected_versions']['range_end']}
+
+弊社はEU CRA第14条に基づき、ENISAへの報告を完了しました（参照番号: {_dec_id}）。
+
+現在パッチを開発中です。完成次第速やかにご連絡いたします。それまでの間、セキュリティアドバイザリポータルに記載の暫定措置をお取りください。
+
+ご不明な点は security@jtec.co.jp までお問い合わせください。
+
+J-TEC セキュリティ対応チーム
+{_now_ts}"""
+        elif _email_idx == 1:  # Patch available
+            _subj_en = f"[ACTION] Patch Available — {_cve_t['cve_id']} ({_prod_t})"
+            _subj_ja = f"【要対応】パッチ公開 — {_cve_t['cve_id']} ({_prod_t})"
+            _body_en = f"""Dear Customer,
+
+A security patch is now available for {_cve_t['cve_id']} affecting {_prod_t}.
+
+Patch Details:
+• CVE: {_cve_t['cve_id']} | CVSS: {_cve_t['cvss_score']}
+• Patch version: {_cve_t['affected_versions']['range_end'].replace('.', '.')}+hotfix1
+• Download: https://support.jtec.co.jp/patches/{_cve_t['cve_id'].lower()}
+
+Please apply this patch within 72 hours. If you require extended maintenance windows, contact your account manager.
+
+J-TEC Security Response Team
+{_now_ts}"""
+            _body_ja = f"""お客様各位
+
+{_prod_t}に影響する{_cve_t['cve_id']}のセキュリティパッチが公開されました。
+
+パッチ詳細:
+• CVE: {_cve_t['cve_id']} | CVSS: {_cve_t['cvss_score']}
+• パッチバージョン: {_cve_t['affected_versions']['range_end']}+hotfix1
+• ダウンロード: https://support.jtec.co.jp/patches/{_cve_t['cve_id'].lower()}
+
+72時間以内にパッチを適用してください。
+
+J-TEC セキュリティ対応チーム
+{_now_ts}"""
+        elif _email_idx == 2:  # Resolved
+            _subj_en = f"[RESOLVED] Incident Closed — {_cve_t['cve_id']}"
+            _subj_ja = f"【解決済み】インシデント終了 — {_cve_t['cve_id']}"
+            _body_en = f"""Dear Customer,
+
+We are pleased to inform you that the security incident related to {_cve_t['cve_id']} affecting {_prod_t} has been fully resolved.
+
+Resolution Summary:
+• Patch deployed to all affected systems
+• ENISA final report submitted (Ref: {_dec_id})
+• Monitoring extended for 30 days post-resolution
+
+No further customer action is required. If you have not yet applied the patch, please do so at your earliest convenience.
+
+Thank you for your patience during this process.
+
+J-TEC Security Response Team
+{_now_ts}"""
+            _body_ja = f"""お客様各位
+
+{_prod_t}に関する{_cve_t['cve_id']}セキュリティインシデントが完全に解決されましたことをお知らせします。
+
+解決の概要:
+• 影響システムへのパッチ展開完了
+• ENISAへの最終報告提出済み（参照番号: {_dec_id}）
+• 解決後30日間の監視継続
+
+お客様側での追加対応は不要です。
+
+J-TEC セキュリティ対応チーム
+{_now_ts}"""
+        else:  # Regulatory filing
+            _subj_en = f"[COMPLIANCE] ENISA Filing Confirmation — {_cve_t['cve_id']}"
+            _subj_ja = f"【規制】ENISA報告完了通知 — {_cve_t['cve_id']}"
+            _body_en = f"""Dear Customer,
+
+In accordance with our obligations under EU Cyber Resilience Act Article 14, we have submitted a vulnerability report to ENISA regarding {_cve_t['cve_id']} in {_prod_t}.
+
+Filing Reference: {_dec_id}
+Submission Date: {_now_ts}
+Report Type: Actively Exploited Vulnerability (Art. 14(2)(a))
+
+This notification is provided for your records and to ensure transparency in our regulatory compliance activities.
+
+J-TEC Compliance Team
+{_now_ts}"""
+            _body_ja = f"""お客様各位
+
+EU CRA第14条に基づく義務として、{_prod_t}に関する{_cve_t['cve_id']}の脆弱性報告をENISAに提出しましたことをご連絡します。
+
+報告参照番号: {_dec_id}
+提出日時: {_now_ts}
+報告種別: 能動的悪用脆弱性（第14条(2)(a)）
+
+本通知は記録保持および規制コンプライアンス活動の透明性確保のために送付しています。
+
+J-TEC コンプライアンスチーム
+{_now_ts}"""
+
+        _subj = _subj_ja if ja else _subj_en
+        _body = _body_ja if ja else _body_en
+
+        # Email preview card
+        with st.expander("📧 " + ("メールプレビュー" if ja else "Email Preview"), expanded=True):
+            st.markdown(f"""
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;
+                        font-family:'Helvetica Neue',Arial,sans-serif;overflow:hidden">
+              <!-- Header bar -->
+              <div style="background:#1e3a8a;padding:12px 20px">
+                <span style="color:white;font-weight:700;font-size:0.9rem">J-TEC Co., Ltd. — Security Notification</span>
+              </div>
+              <!-- Meta row -->
+              <div style="background:#f1f5f9;padding:10px 20px;font-size:0.77rem;color:#374151;border-bottom:1px solid #e2e8f0">
+                <b>{'送信元' if ja else 'From'}:</b> security@jtec.co.jp &nbsp;|&nbsp;
+                <b>{'件名' if ja else 'Subject'}:</b> {_subj}
+              </div>
+              <!-- Body -->
+              <div style="padding:16px 20px;font-size:0.80rem;color:#1e293b;line-height:1.7;white-space:pre-wrap">{_body}</div>
+              <!-- Footer -->
+              <div style="background:#f1f5f9;padding:8px 20px;font-size:0.7rem;color:#94a3b8;border-top:1px solid #e2e8f0">
+                J-TEC Co., Ltd. · 1-2-3 Marunouchi, Chiyoda, Tokyo 100-0005 · security@jtec.co.jp<br>
+                {'本メールはJ-TECのCRAコンプライアンスシステムにより自動生成されました。' if ja else
+                 'This email was generated by J-TEC CRA Compliance System. Decision ID: '}{_dec_id}
+              </div>
+            </div>""", unsafe_allow_html=True)
+
+        # Download email as .eml / .txt
+        st.download_button(
+            label="⬇️ " + ("メールファイルをダウンロード (.txt)" if ja else "Download Email File (.txt)"),
+            data=f"From: security@jtec.co.jp\nTo: [Customer Distribution List]\nSubject: {_subj}\nDate: {_now_ts}\n\n{_body}",
+            file_name=f"Notification-{_cve_t['cve_id']}-{_email_idx+1}.txt",
+            mime="text/plain",
+            use_container_width=False
+        )
+
+        st.markdown("---")
+
+        # ── Approval Workflow ──
+        st.markdown("##### ✅ " + ("送信前承認ワークフロー" if ja else "Pre-Send Approval Workflow"))
+        _chain = [
+            {"role": ("セキュリティエンジニア" if ja else "Security Engineer"),  "name": "K. Tanaka",       "status": "approved", "ts": "09:12"},
+            {"role": ("セキュリティマネージャー" if ja else "Security Manager"),  "name": "Y. Matsumoto",    "status": "approved", "ts": "09:28"},
+            {"role": ("コンプライアンス担当" if ja else "Compliance Officer"),    "name": review["reviewer"],"status": "approved", "ts": review["review_timestamp"][11:16] if "T" in review["review_timestamp"] else "10:05"},
+            {"role": ("法務責任者" if ja else "Legal Counsel"),                   "name": "R. Kobayashi",    "status": "pending",  "ts": "—"},
+        ]
+        ch_cols = st.columns(4)
+        for ch, ccol in zip(_chain, ch_cols):
+            s = ch["status"]
+            bg     = "#f0fdf4" if s == "approved" else "#fff7ed"
+            border = "#16a34a" if s == "approved" else "#d97706"
+            icon   = "✅" if s == "approved" else "⏳"
+            label  = ("承認済み" if ja else "APPROVED") if s == "approved" else ("保留中" if ja else "PENDING")
+            with ccol:
+                st.markdown(f"""<div style="background:{bg};border:1px solid {border};border-radius:8px;
+                    padding:12px 14px;text-align:center">
+                  <div style="font-size:1.4rem">{icon}</div>
+                  <div style="font-size:0.78rem;font-weight:700;color:{border};margin-top:4px">{label}</div>
+                  <div style="font-size:0.75rem;color:#374151;margin-top:2px">{ch['role']}</div>
+                  <div style="font-size:0.72rem;color:#6b7280">{ch['name']}</div>
+                  <div style="font-size:0.68rem;color:#94a3b8;margin-top:2px">{ch['ts']}</div>
+                </div>""", unsafe_allow_html=True)
+        st.caption("ℹ️ " + ("法務責任者の承認後、通知が顧客に送信されます。" if ja else
+                            "Notification will be sent to customers once Legal Counsel approves."))
 
     with tab6:
         st.subheader(t("t6_header")); enisa=results["enisa_result"]
