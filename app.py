@@ -548,16 +548,203 @@ elif st.session_state.pipeline_results:
 
     with tab6:
         st.subheader(t("t6_header")); enisa=results["enisa_result"]
-        c1,c2=st.columns(2)
-        with c1:
-            st.metric(t("metric_status"),enisa["status"])
-            st.metric(t("metric_submitted"),("YES ✅" if enisa["submitted"] else "NO") if not ja else ("あり ✅" if enisa["submitted"] else "なし"))
-        with c2:
-            if enisa["submitted"]:
-                st.success(t("t6_ref",ref=enisa["enisa_reference_id"])); st.caption(t("t6_submitted_at",ts=enisa["submission_timestamp"])); st.markdown(t("t6_sla"))
-            else: st.info(t("t6_no_submit"))
-        with st.expander(t("t6_payload_preview")):
-            st.json(generate_enisa_submission_json(decision=results["review_result"],cve=results["cve"],product_name=results["product_name"],sbom_match=results["sbom_match"],submission_id=results["enisa_result"]["submission_id"]))
+        final_dec = results["review_result"]["final_decision_type"]
+
+        if final_dec != "REPORT":
+            # ── Not applicable ──
+            st.info("ℹ️ " + ("ENISA報告義務なし — このケースは自動報告対象外です。" if ja else
+                              "ENISA submission not required — this case does not trigger Article 14 reporting."))
+            c1,c2=st.columns(2)
+            c1.metric(t("metric_status"), enisa["status"])
+            c2.metric(t("metric_submitted"), "NO — " + final_dec)
+            with st.expander(t("t6_payload_preview")):
+                st.json(generate_enisa_submission_json(decision=results["review_result"],cve=results["cve"],
+                        product_name=results["product_name"],sbom_match=results["sbom_match"],
+                        submission_id=results["enisa_result"]["submission_id"]))
+        else:
+            # ── ENISA Submission Simulator ──
+            st.markdown(f"""
+            <div style="background:#eff6ff;border-left:5px solid #1e40af;border-radius:8px;padding:12px 18px;margin-bottom:12px">
+              <b style="color:#1e3a8a;font-size:0.95rem">{'🏛️ ENISA 脆弱性報告ポータル — シミュレーター' if ja else '🏛️ ENISA Vulnerability Reporting Portal — Simulator'}</b><br>
+              <span style="color:#1e40af;font-size:0.8rem">{'CRA 第14条に基づく能動的悪用脆弱性報告。本シミュレーターはENISAポータルの提出フローを再現します。' if ja else
+              'Actively Exploited Vulnerability Report under CRA Article 14. This simulator replicates the ENISA portal submission flow.'}</span>
+            </div>""", unsafe_allow_html=True)
+
+            # Stepper: 4 steps
+            sim_step_key = f"enisa_sim_step_{results['enisa_result']['submission_id'][:8]}"
+            if sim_step_key not in st.session_state:
+                st.session_state[sim_step_key] = 1   # start at step 1
+
+            cur_step = st.session_state[sim_step_key]
+
+            step_labels = (
+                ["1. レポーター確認", "2. 脆弱性詳細", "3. 影響評価", "4. 送信確認"]
+                if ja else
+                ["1. Reporter Identity", "2. Vulnerability Details", "3. Impact Assessment", "4. Submit & Confirm"]
+            )
+            step_cols = st.columns(4)
+            for si, (scol, slbl) in enumerate(zip(step_cols, step_labels), start=1):
+                done = si < cur_step; active = si == cur_step
+                circ_bg = "#16a34a" if done else "#1e3a8a" if active else "#e2e8f0"
+                circ_fg = "white" if (done or active) else "#94a3b8"
+                lbl_col = "#16a34a" if done else "#1e3a8a" if active else "#94a3b8"
+                icon = "✓" if done else str(si)
+                with scol:
+                    st.markdown(f"""<div style="text-align:center">
+                      <div style="width:36px;height:36px;border-radius:50%;background:{circ_bg};color:{circ_fg};
+                           font-weight:700;font-size:1rem;display:inline-flex;align-items:center;justify-content:center">{icon}</div>
+                      <div style="font-size:0.72rem;color:{lbl_col};margin-top:4px;font-weight:{'700' if active else '400'}">{slbl}</div>
+                    </div>""", unsafe_allow_html=True)
+            st.markdown("")
+
+            cve_r  = results["cve"]
+            prod_r = results["product_name"]
+            rev_r  = results["review_result"]
+            ref_id = enisa["enisa_reference_id"]
+            sub_ts = enisa["submission_timestamp"]
+
+            if cur_step == 1:
+                st.markdown("#### " + ("レポーター情報の確認" if ja else "Reporter Identity Confirmation"))
+                with st.form("enisa_step1"):
+                    rc1, rc2 = st.columns(2)
+                    with rc1:
+                        org = st.text_input("🏢 " + ("組織名" if ja else "Organisation Name"), value="J-TEC Co., Ltd.")
+                        role = st.selectbox("👤 " + ("役割" if ja else "Reporter Role"),
+                            ["Compliance Officer", "CISO", "Security Engineer", "Legal Counsel"])
+                    with rc2:
+                        country = st.selectbox("🌍 " + ("登録国" if ja else "Country of Registration"),
+                            ["Japan", "Germany", "France", "Italy", "Spain", "Ireland"])
+                        contact = st.text_input("📧 " + ("連絡先メール" if ja else "Contact Email"),
+                            value="compliance@jtec.co.jp", placeholder="compliance@company.com")
+                    st.markdown(f"""<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
+                        padding:10px 14px;font-size:0.78rem;color:#374151">
+                        <b>{'記入前の確認' if ja else 'Pre-submission declaration'}</b><br>
+                        {'私は、CRA 第14条に基づき、本脆弱性報告書の情報が正確かつ完全であることを宣言します。' if ja else
+                         'I declare that the information in this vulnerability report is accurate and complete to the best of my knowledge, in accordance with CRA Article 14.'}
+                    </div>""", unsafe_allow_html=True)
+                    st.checkbox("✅ " + ("上記の宣言に同意します" if ja else "I agree to the above declaration"), value=True)
+                    if st.form_submit_button("→ " + ("次へ: 脆弱性詳細" if ja else "Next: Vulnerability Details"),
+                                             use_container_width=True, type="primary"):
+                        st.session_state[sim_step_key] = 2; st.rerun()
+
+            elif cur_step == 2:
+                st.markdown("#### " + ("脆弱性詳細情報" if ja else "Vulnerability Details"))
+                vc1, vc2 = st.columns(2)
+                with vc1:
+                    st.markdown(f"""<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;font-size:0.80rem">
+                        <b>CVE Identifier:</b> <code>{cve_r['cve_id']}</code><br><br>
+                        <b>CVSS Score:</b> {cve_r['cvss_score']} ({cve_r['severity']})<br>
+                        <b>Exploit Available:</b> {"Yes ⚠️" if cve_r.get("exploit_available") else "No"}<br>
+                        <b>Affected Versions:</b> {cve_r['affected_versions']['range_start']} → {cve_r['affected_versions']['range_end']}<br>
+                    </div>""", unsafe_allow_html=True)
+                with vc2:
+                    st.markdown(f"""<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;font-size:0.80rem">
+                        <b>{'影響製品' if ja else 'Affected Product'}:</b> {prod_r}<br><br>
+                        <b>{'報告者決定' if ja else 'Reportable Decision'}:</b> <span style="color:#dc2626;font-weight:700">REPORT</span><br>
+                        <b>{'決定信頼度' if ja else 'Decision Confidence'}:</b> {results['decision_proposal']['confidence_score']:.0%}<br>
+                        <b>{'審査担当者' if ja else 'Reviewer'}:</b> {rev_r['reviewer']}<br>
+                    </div>""", unsafe_allow_html=True)
+                with st.form("enisa_step2"):
+                    st.text_area("📝 " + ("脆弱性の説明（英語）" if ja else "Vulnerability Description (English)"),
+                        value=cve_r.get("description",""),height=80,
+                        help="Pre-filled from CVE ingestion" if not ja else "CVE取込から自動入力")
+                    st.text_area("🔧 " + ("暫定対応措置" if ja else "Interim Mitigation Measures"),
+                        value="Vendor patch under development. Firewall rules applied as interim measure." if not ja
+                              else "ベンダーパッチ開発中。暫定措置としてファイアウォールルールを適用。",
+                        height=70)
+                    sc2c1, sc2c2 = st.columns(2)
+                    with sc2c1:
+                        if st.form_submit_button("← " + ("戻る" if ja else "Back"), use_container_width=True):
+                            st.session_state[sim_step_key] = 1; st.rerun()
+                    with sc2c2:
+                        if st.form_submit_button("→ " + ("次へ: 影響評価" if ja else "Next: Impact Assessment"),
+                                                 use_container_width=True, type="primary"):
+                            st.session_state[sim_step_key] = 3; st.rerun()
+
+            elif cur_step == 3:
+                st.markdown("#### " + ("影響評価 & 市場範囲" if ja else "Impact Assessment & Market Scope"))
+                with st.form("enisa_step3"):
+                    ic1, ic2 = st.columns(2)
+                    with ic1:
+                        st.multiselect("🌍 " + ("影響を受ける加盟国" if ja else "Affected EU Member States"),
+                            ["Germany 🇩🇪", "France 🇫🇷", "Italy 🇮🇹", "Spain 🇪🇸", "Ireland 🇮🇪"],
+                            default=["Germany 🇩🇪", "France 🇫🇷", "Ireland 🇮🇪"])
+                        st.selectbox("⚠️ " + ("影響レベル" if ja else "Impact Severity"),
+                            ["CRITICAL — Immediate action required", "HIGH — Action required within 24h",
+                             "MEDIUM — Action required within 72h"], index=0)
+                    with ic2:
+                        st.number_input("🏭 " + ("影響を受ける製品数" if ja else "Number of Affected Products"),
+                            min_value=1, max_value=100, value=1)
+                        st.number_input("👥 " + ("推定影響ユーザー数" if ja else "Estimated Affected Users (approx.)"),
+                            min_value=0, value=500, step=100)
+                    st.markdown(f"""<div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;
+                        padding:10px 14px;font-size:0.77rem;color:#92400e;margin-top:8px">
+                        ⏱️ <b>{'CRA 第14条 SLA' if ja else 'CRA Article 14 SLA'}</b>:&nbsp;
+                        {'能動的悪用脆弱性の早期警告は検知後 24時間以内、完全報告は 72時間以内に提出が義務です。' if ja else
+                         'Early warning within 24h of detection. Full notification within 72h. Final report within 90 days.'}
+                    </div>""", unsafe_allow_html=True)
+                    ic3c1, ic3c2 = st.columns(2)
+                    with ic3c1:
+                        if st.form_submit_button("← " + ("戻る" if ja else "Back"), use_container_width=True):
+                            st.session_state[sim_step_key] = 2; st.rerun()
+                    with ic3c2:
+                        if st.form_submit_button("→ " + ("送信確認へ" if ja else "Proceed to Submit"),
+                                                 use_container_width=True, type="primary"):
+                            st.session_state[sim_step_key] = 4; st.rerun()
+
+            elif cur_step == 4:
+                # Confirmation screen
+                st.markdown("---")
+                st.markdown(f"""
+                <div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:12px;padding:20px 24px;text-align:center;margin-bottom:16px">
+                  <div style="font-size:2rem;margin-bottom:4px">✅</div>
+                  <div style="font-size:1.1rem;font-weight:800;color:#15803d">
+                    {'ENISA 提出完了' if ja else 'ENISA Submission Confirmed'}
+                  </div>
+                  <div style="font-size:0.85rem;color:#166534;margin-top:6px">
+                    {'CRA 第14条に基づく脆弱性報告が正常に受理されました。' if ja else
+                     'Your vulnerability report under CRA Article 14 has been accepted.'}
+                  </div>
+                </div>""", unsafe_allow_html=True)
+
+                cc1, cc2, cc3 = st.columns(3)
+                cc1.metric("🔖 " + ("参照番号" if ja else "Reference ID"), ref_id)
+                cc2.metric("🕐 " + ("提出日時" if ja else "Submitted At"),
+                           sub_ts[:19].replace("T"," ") if sub_ts else "—")
+                cc3.metric("📋 " + ("規制条文" if ja else "Regulation"), "CRA Art. 14")
+
+                st.markdown("##### " + ("📅 次のステップ & 締め切り" if ja else "📅 Next Steps & Deadlines"))
+                deadlines = [
+                    ("✅", "#16a34a", ("早期警告 — 完了" if ja else "Early Warning — DONE"),
+                     ("検知後24時間以内（第14条）" if ja else "Within 24h of detection (Art. 14)")),
+                    ("⏳", "#d97706", ("完全通知 — 進行中" if ja else "Full Notification — IN PROGRESS"),
+                     ("検知後72時間以内" if ja else "Within 72h of detection")),
+                    ("📋", "#1e40af", ("最終報告 — 保留" if ja else "Final Report — PENDING"),
+                     ("インシデント解決後90日以内" if ja else "Within 90 days of resolution")),
+                    ("🏛️", "#6366f1", ("国家機関への通知" if ja else "National Authority Notification"),
+                     ("各加盟国のNCA/CSIRTへ通知" if ja else "Notify NCA/CSIRT in each affected member state")),
+                ]
+                dl_cols = st.columns(4)
+                for (icon, color, title, desc), dcol in zip(deadlines, dl_cols):
+                    with dcol:
+                        st.markdown(f"""<div style="background:#f8fafc;border-left:4px solid {color};
+                            border-radius:8px;padding:12px 14px;height:100%">
+                          <div style="font-size:1.3rem">{icon}</div>
+                          <div style="font-weight:700;font-size:0.82rem;color:{color};margin-top:4px">{title}</div>
+                          <div style="font-size:0.72rem;color:#6b7280;margin-top:3px">{desc}</div>
+                        </div>""", unsafe_allow_html=True)
+
+                st.markdown("")
+                if st.button("🔄 " + ("新しいシミュレーションを開始" if ja else "Run New Simulation"),
+                             use_container_width=False):
+                    st.session_state[sim_step_key] = 1; st.rerun()
+
+                st.markdown("---")
+                with st.expander(t("t6_payload_preview")):
+                    st.json(generate_enisa_submission_json(
+                        decision=results["review_result"], cve=results["cve"],
+                        product_name=results["product_name"], sbom_match=results["sbom_match"],
+                        submission_id=results["enisa_result"]["submission_id"]))
 
     with tab7:
         st.subheader(t("t7_header"))
