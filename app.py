@@ -12,7 +12,9 @@ from collections import Counter
 
 from mock_data import PRODUCTS, CVE_SCENARIOS, DECISION_RULES, THRESHOLDS
 from decision_engine import DecisionEngine
-from enisa_reporter import generate_enisa_submission_json, generate_compliance_artifact_html
+from enisa_reporter import (generate_enisa_submission_json, generate_compliance_artifact_html,
+                            generate_cyclonedx_sbom, generate_enisa_article14_json,
+                            generate_audit_csv, generate_pdf_report)
 from translations import t, SCENARIO_JA
 
 st.set_page_config(
@@ -439,15 +441,124 @@ elif st.session_state.pipeline_results:
 
     with tab7:
         st.subheader(t("t7_header"))
-        html_report=generate_compliance_artifact_html(decision_id=results["review_result"]["decision_id"],cve=results["cve"],product_name=results["product_name"],sbom_match=results["sbom_match"],decision=results["review_result"],audit_trail=results["audit_trail"])
-        enisa_json=generate_enisa_submission_json(decision=results["review_result"],cve=results["cve"],product_name=results["product_name"],sbom_match=results["sbom_match"],submission_id=results["enisa_result"]["submission_id"])
-        c1,c2=st.columns(2)
-        with c1:
-            st.markdown(t("t7_html_title")); st.caption(t("t7_html_caption"))
-            st.download_button(t("t7_html_btn"),html_report,f"CRA-{results['cve']['cve_id']}.html","text/html",use_container_width=True)
-        with c2:
-            st.markdown(t("t7_json_title")); st.caption(t("t7_json_caption"))
-            st.download_button(t("t7_json_btn"),json.dumps(enisa_json,indent=2),f"ENISA-{results['cve']['cve_id']}.json","application/json",use_container_width=True)
+        _cve    = results["cve"]
+        _prod   = results["product_name"]
+        _proddata = PRODUCTS.get(_prod, {})
+        _match  = results["sbom_match"]
+        _dec    = results["review_result"]
+        _audit  = results["audit_trail"]
+        _sid    = results["enisa_result"]["submission_id"]
+        _scen   = results["scenario_name"]
+
+        # Pre-generate all artifacts
+        _html_report  = generate_compliance_artifact_html(
+            decision_id=_dec["decision_id"], cve=_cve, product_name=_prod,
+            sbom_match=_match, decision=_dec, audit_trail=_audit)
+        _enisa_basic  = generate_enisa_submission_json(
+            decision=_dec, cve=_cve, product_name=_prod,
+            sbom_match=_match, submission_id=_sid)
+        _enisa_full   = generate_enisa_article14_json(
+            decision=_dec, cve=_cve, product_name=_prod, product_data=_proddata,
+            sbom_match=_match, submission_id=_sid, audit_trail=_audit)
+        _cyclonedx    = generate_cyclonedx_sbom(
+            product_name=_prod, product_data=_proddata,
+            cve=_cve, sbom_match=_match)
+        _csv_bytes    = generate_audit_csv(
+            audit_trail=_audit, cve_id=_cve["cve_id"],
+            product_name=_prod, decision_type=_dec["final_decision_type"])
+        _pdf_bytes    = generate_pdf_report(
+            cve=_cve, product_name=_prod, product_data=_proddata,
+            sbom_match=_match, decision=_dec,
+            audit_trail=_audit, scenario_name=_scen)
+
+        cveid = _cve["cve_id"]
+
+        # ── Row 1: PDF + HTML ──
+        st.markdown("##### 📄 " + ("監査レポート" if ja else "Audit Reports"))
+        r1c1, r1c2 = st.columns(2)
+        with r1c1:
+            st.markdown("**📕 PDF Compliance Report**")
+            st.caption("Branded A4 PDF with full audit trail, rules applied, and decision justification. Best for client-facing distribution." if not ja
+                       else "監査証跡・適用ルール・決定理由を含むA4ブランドPDF。クライアント配布に最適。")
+            if _pdf_bytes:
+                st.download_button(
+                    label="⬇️ Download PDF Report",
+                    data=_pdf_bytes,
+                    file_name=f"CRA-Report-{cveid}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True, type="primary")
+            else:
+                st.warning("ReportLab not available in this environment.")
+        with r1c2:
+            st.markdown("**🌐 HTML Compliance Artifact**")
+            st.caption("Self-contained HTML report — open in any browser, print to PDF, or embed in portals." if not ja
+                       else "単体HTMLレポート — ブラウザで表示・PDF印刷・ポータル埋め込み可能。")
+            st.download_button(
+                label="⬇️ Download HTML Report",
+                data=_html_report,
+                file_name=f"CRA-{cveid}.html",
+                mime="text/html",
+                use_container_width=True)
+
+        st.markdown("---")
+
+        # ── Row 2: ENISA JSON (Basic + Full Article 14) ──
+        st.markdown("##### 🏛️ " + ("ENISA報告データ" if ja else "ENISA Reporting Data"))
+        r2c1, r2c2 = st.columns(2)
+        with r2c1:
+            st.markdown("**📋 ENISA Submission JSON** *(Basic)*")
+            st.caption("Compact submission payload — matches the ENISA vulnerability portal intake format." if not ja
+                       else "コンパクトな提出ペイロード — ENISAポータル受付フォーマット準拠。")
+            st.download_button(
+                label="⬇️ Download ENISA JSON",
+                data=json.dumps(_enisa_basic, indent=2),
+                file_name=f"ENISA-Basic-{cveid}.json",
+                mime="application/json",
+                use_container_width=True)
+        with r2c2:
+            st.markdown("**📜 CRA Article 14 Full Notification JSON**")
+            st.caption("Full structured Article 14 payload: timeline, evidence block, affected markets, regulator metadata." if not ja
+                       else "完全な第14条構造化ペイロード：タイムライン・証拠・影響市場・規制機関メタデータ含む。")
+            st.download_button(
+                label="⬇️ Download Article 14 JSON",
+                data=json.dumps(_enisa_full, indent=2),
+                file_name=f"ENISA-Article14-{cveid}.json",
+                mime="application/json",
+                use_container_width=True)
+
+        # Preview toggle
+        with st.expander("👁️ " + ("Article 14 JSONプレビュー" if ja else "Preview Article 14 JSON")):
+            st.json(_enisa_full)
+
+        st.markdown("---")
+
+        # ── Row 3: SBOM CycloneDX + CSV Audit Log ──
+        st.markdown("##### 📦 " + ("SBOM・監査ログ" if ja else "SBOM & Audit Log"))
+        r3c1, r3c2 = st.columns(2)
+        with r3c1:
+            st.markdown("**🔩 CycloneDX 1.6 SBOM Export**")
+            st.caption("Industry-standard Software Bill of Materials in CycloneDX JSON format. Vulnerable component annotated inline." if not ja
+                       else "CycloneDX JSON形式の業界標準SBOM。脆弱コンポーネントをインラインで注釈付き。")
+            st.download_button(
+                label="⬇️ Download CycloneDX SBOM",
+                data=json.dumps(_cyclonedx, indent=2),
+                file_name=f"SBOM-CycloneDX-{_prod.replace(' ','-')}-{cveid}.json",
+                mime="application/json",
+                use_container_width=True)
+        with r3c2:
+            st.markdown("**📊 Audit Trail CSV / Excel**")
+            st.caption("Complete pipeline audit log as CSV — open directly in Excel, import to SIEM, or attach to ENISA submission." if not ja
+                       else "完全なパイプライン監査ログCSV — Excel直接表示・SIEM取込み・ENISA提出添付に対応。")
+            st.download_button(
+                label="⬇️ Download Audit Log CSV",
+                data=_csv_bytes,
+                file_name=f"AuditLog-{cveid}-{_prod.replace(' ','-')}.csv",
+                mime="text/csv",
+                use_container_width=True)
+
+        # SBOM preview
+        with st.expander("👁️ " + ("CycloneDX SBOMプレビュー" if ja else "Preview CycloneDX SBOM")):
+            st.json(_cyclonedx)
 
     st.markdown("---"); st.header(t("section_audit")); st.caption(t("section_audit_caption"))
     audit_df=pd.DataFrame(results["audit_trail"])
