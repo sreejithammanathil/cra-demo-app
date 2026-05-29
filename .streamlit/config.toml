@@ -1,0 +1,12 @@
+[theme]
+# Professional Japanese Corporate Light Theme
+# Clean white/slate backgrounds, deep navy accent — standard in Japanese enterprise software
+primaryColor       = "#1e3a8a"
+backgroundColor    = "#ffffff"
+secondaryBackgroundColor = "#f1f5f9"
+textColor          = "#1e293b"
+font               = "sans serif"
+
+[server]
+headless = true
+enableCORS = false

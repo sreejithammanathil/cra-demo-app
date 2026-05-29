@@ -40,12 +40,12 @@ st.markdown("**" + ("ENISA報告後の規制運用フェーズ — 脆弱性ラ�
 
 # Case banner
 st.markdown(f"""
-<div style="background:#1e3a5f;border-left:5px solid #3b82f6;border-radius:8px;padding:12px 18px;margin:8px 0 16px 0;display:flex;gap:32px;flex-wrap:wrap">
-  <div><span style="color:#93c5fd;font-size:0.75rem">{'ケース参照' if ja else 'Case Ref'}</span><br><b style="color:white;font-size:0.95rem">{d['case_ref']}</b></div>
-  <div><span style="color:#93c5fd;font-size:0.75rem">CVE</span><br><b style="color:white;font-size:0.95rem">{d['cve_id']}</b></div>
-  <div><span style="color:#93c5fd;font-size:0.75rem">{'製品' if ja else 'Product'}</span><br><b style="color:white;font-size:0.95rem">{d['product']}</b></div>
-  <div><span style="color:#93c5fd;font-size:0.75rem">{'初期報告' if ja else 'Initial Report'}</span><br><b style="color:white;font-size:0.95rem">{d['initial_report_ts']}</b></div>
-  <div><span style="color:#93c5fd;font-size:0.75rem">ENISA Submission ID</span><br><b style="color:white;font-size:0.95rem">{d['enisa_submission_id']}</b></div>
+<div style="background:#eff6ff;border:1px solid #bfdbfe;border-left:5px solid #1e40af;border-radius:8px;padding:12px 18px;margin:8px 0 16px 0;display:flex;gap:32px;flex-wrap:wrap">
+  <div><span style="color:#1e40af;font-size:0.75rem;font-weight:600">{'ケース参照' if ja else 'Case Ref'}</span><br><b style="color:#1e293b;font-size:0.95rem">{d['case_ref']}</b></div>
+  <div><span style="color:#1e40af;font-size:0.75rem;font-weight:600">CVE</span><br><b style="color:#1e293b;font-size:0.95rem">{d['cve_id']}</b></div>
+  <div><span style="color:#1e40af;font-size:0.75rem;font-weight:600">{'製品' if ja else 'Product'}</span><br><b style="color:#1e293b;font-size:0.95rem">{d['product']}</b></div>
+  <div><span style="color:#1e40af;font-size:0.75rem;font-weight:600">{'初期報告' if ja else 'Initial Report'}</span><br><b style="color:#1e293b;font-size:0.95rem">{d['initial_report_ts']}</b></div>
+  <div><span style="color:#1e40af;font-size:0.75rem;font-weight:600">ENISA Submission ID</span><br><b style="color:#1e293b;font-size:0.95rem">{d['enisa_submission_id']}</b></div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -213,9 +213,9 @@ with tabs[1]:
         dir_label = ("送信" if ja else "OUTBOUND") if c["dir"]=="OUT" else ("受信" if ja else "INBOUND")
         dir_color = "#1e40af" if c["dir"]=="IN" else "#166534"
         st.markdown(f"""
-        <div style="border-left:3px solid {dir_color};padding:6px 12px;margin-bottom:6px;background:#f9fafb;border-radius:0 6px 6px 0">
-          <span style="font-size:0.72rem;color:#6b7280">{c['ts']} · {dir_icon} {dir_label} · {c['ch']}</span><br>
-          <span style="font-size:0.85rem">{c['summary']}</span>
+        <div style="border-left:3px solid {dir_color};padding:6px 12px;margin-bottom:6px;background:#f8fafc;border:1px solid #e2e8f0;border-left:3px solid {dir_color};border-radius:0 6px 6px 0">
+          <span style="font-size:0.72rem;color:#64748b">{c['ts']} · {dir_icon} {dir_label} · {c['ch']}</span><br>
+          <span style="font-size:0.85rem;color:#1e293b">{c['summary']}</span>
         </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -455,9 +455,9 @@ with tabs[6]:
     section_header("⛓️","Chain of Custody","保管チェーン")
     for entry in aud["custody_log"]:
         st.markdown(f"""
-        <div style="border-left:3px solid #3b82f6;padding:5px 12px;margin-bottom:5px;background:#f9fafb;border-radius:0 6px 6px 0">
-          <span style="font-size:0.72rem;color:#6b7280">{entry['ts']} · {entry['actor']}</span><br>
-          <span style="font-size:0.84rem">🔒 {entry['event']}</span>
+        <div style="border-left:3px solid #1e40af;padding:5px 12px;margin-bottom:5px;background:#f8fafc;border:1px solid #e2e8f0;border-left:3px solid #1e40af;border-radius:0 6px 6px 0">
+          <span style="font-size:0.72rem;color:#64748b">{entry['ts']} · {entry['actor']}</span><br>
+          <span style="font-size:0.84rem;color:#1e293b">🔒 {entry['event']}</span>
         </div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -485,7 +485,7 @@ with tabs[7]:
     src_cols = st.columns(len(mon["sources"]))
     for col, src in zip(src_cols, mon["sources"]):
         with col:
-            st.markdown(f'<div style="background:#eff6ff;border-radius:8px;padding:8px;text-align:center;font-size:0.78rem;font-weight:600;color:#1e40af">{src}</div>',
+            st.markdown(f'<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:8px;text-align:center;font-size:0.78rem;font-weight:600;color:#1e3a8a">{src}</div>',
                         unsafe_allow_html=True)
 
     st.markdown("---")
@@ -496,9 +496,9 @@ with tabs[7]:
     for i, trig in enumerate(mon["reopen_triggers"]):
         with trig_cols[i % 2]:
             st.markdown(f"""
-            <div style="background:#eff6ff;border-left:3px solid #3b82f6;border-radius:6px;padding:8px 12px;margin-bottom:8px">
-              <b style="font-size:0.85rem">{'👁️ ' + (trig['trigger_ja'] if ja else trig['trigger'])}</b><br>
-              <span style="font-size:0.72rem;color:#1e40af">{trig['status']}</span>
+            <div style="background:#f0f9ff;border:1px solid #bae6fd;border-left:3px solid #1e40af;border-radius:6px;padding:8px 12px;margin-bottom:8px">
+              <b style="font-size:0.85rem;color:#1e293b">{'👁️ ' + (trig['trigger_ja'] if ja else trig['trigger'])}</b><br>
+              <span style="font-size:0.72rem;color:#1e40af;font-weight:600">{trig['status']}</span>
             </div>""", unsafe_allow_html=True)
 
     st.markdown("---")
@@ -515,25 +515,26 @@ with tabs[8]:
 
     # Risk row
     ec1,ec2,ec3,ec4 = st.columns(4)
+    card_base = "border-radius:10px;padding:16px;border:1px solid;text-align:center"
     with ec1:
-        st.markdown(f"""<div style="border-radius:10px;padding:16px;background:#fff7ed;border-left:5px solid #c2410c;text-align:center">
+        st.markdown(f"""<div style="{card_base};background:#fff7ed;border-color:#fed7aa;border-left:5px solid #c2410c">
         <div style="font-size:0.78rem;color:#92400e;font-weight:600">{'総合リスク' if ja else 'Overall Risk'}</div>
         <div style="margin-top:6px">{risk_badge(exe['overall_risk'])}</div></div>""", unsafe_allow_html=True)
     with ec2:
-        st.markdown(f"""<div style="border-radius:10px;padding:16px;background:#fff7ed;border-left:5px solid #c2410c;text-align:center">
+        st.markdown(f"""<div style="{card_base};background:#fff7ed;border-color:#fed7aa;border-left:5px solid #c2410c">
         <div style="font-size:0.78rem;color:#92400e;font-weight:600">{'規制リスク' if ja else 'Regulatory Risk'}</div>
         <div style="margin-top:6px">{risk_badge(exe['regulatory_risk'])}</div>
-        <div style="font-size:0.7rem;color:#6b7280;margin-top:4px">{exe['regulatory_detail']}</div></div>""", unsafe_allow_html=True)
+        <div style="font-size:0.7rem;color:#64748b;margin-top:4px">{exe['regulatory_detail']}</div></div>""", unsafe_allow_html=True)
     with ec3:
-        st.markdown(f"""<div style="border-radius:10px;padding:16px;background:#f0fff4;border-left:5px solid #16a34a;text-align:center">
+        st.markdown(f"""<div style="{card_base};background:#f0fdf4;border-color:#bbf7d0;border-left:5px solid #16a34a">
         <div style="font-size:0.78rem;color:#166534;font-weight:600">{'訴訟リスク' if ja else 'Litigation Risk'}</div>
         <div style="margin-top:6px">{risk_badge(exe['litigation_risk'])}</div>
-        <div style="font-size:0.7rem;color:#6b7280;margin-top:4px">{exe['litigation_detail'][:60]}…</div></div>""", unsafe_allow_html=True)
+        <div style="font-size:0.7rem;color:#64748b;margin-top:4px">{exe['litigation_detail'][:60]}…</div></div>""", unsafe_allow_html=True)
     with ec4:
-        st.markdown(f"""<div style="border-radius:10px;padding:16px;background:#eff6ff;border-left:5px solid #1e40af;text-align:center">
+        st.markdown(f"""<div style="{card_base};background:#eff6ff;border-color:#bfdbfe;border-left:5px solid #1e40af">
         <div style="font-size:0.78rem;color:#1e40af;font-weight:600">{'未解決露出' if ja else 'Unresolved Exposure'}</div>
-        <div style="font-size:1.8rem;font-weight:800;color:#1e40af;margin-top:4px">{exe['unresolved_exposure']:,}</div>
-        <div style="font-size:0.7rem;color:#6b7280">{'システム' if ja else 'systems'}</div></div>""", unsafe_allow_html=True)
+        <div style="font-size:1.8rem;font-weight:800;color:#1e3a8a;margin-top:4px">{exe['unresolved_exposure']:,}</div>
+        <div style="font-size:0.7rem;color:#64748b">{'システム' if ja else 'systems'}</div></div>""", unsafe_allow_html=True)
 
     st.markdown("---")
     # Financial exposure

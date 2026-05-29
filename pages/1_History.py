@@ -50,7 +50,7 @@ cols = st.columns(4)
 for col, (key, (style, outcome_key)) in zip(cols, card_styles.items()):
     s = CVE_SCENARIOS[key]
     severity_icon = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}.get(s["severity"], "⚪")
-    name_label = t(f"scenario_{key}_name")
+    name_label = t(f"{key}_name")
     outcome_label = t(outcome_key)
     human_badge = " &nbsp;<span style='background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:10px;font-size:0.7rem'>👤</span>" if s.get("human_review_required") else ""
 

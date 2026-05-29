@@ -42,23 +42,37 @@ ja = st.session_state.lang == "ja"
 # ============= CSS =============
 st.markdown("""
 <style>
+/* ── Global: force white/light base ── */
+.stApp { background-color: #ffffff; }
+section[data-testid="stSidebar"] { background-color: #f8fafc; border-right: 1px solid #e2e8f0; }
+
+/* ── CRA Pipeline readiness pills ── */
 .ready-pill{display:inline-flex;align-items:center;gap:6px;background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:20px;padding:5px 14px;font-size:0.82rem;font-weight:600}
-.ready-dot{width:8px;height:8px;border-radius:50%;background:#21c354}
-.badge-report    {background:#ff4b4b;color:white;padding:6px 18px;border-radius:20px;font-weight:bold;font-size:1.1rem;display:inline-block}
-.badge-not-report{background:#21c354;color:white;padding:6px 18px;border-radius:20px;font-weight:bold;font-size:1.1rem;display:inline-block}
-.badge-conflict  {background:#ffa500;color:white;padding:6px 18px;border-radius:20px;font-weight:bold;font-size:1.1rem;display:inline-block}
+.ready-dot{width:8px;height:8px;border-radius:50%;background:#16a34a}
+
+/* ── Decision badges ── */
+.badge-report    {background:#dc2626;color:white;padding:6px 20px;border-radius:6px;font-weight:700;font-size:1.05rem;display:inline-block;letter-spacing:0.5px}
+.badge-not-report{background:#16a34a;color:white;padding:6px 20px;border-radius:6px;font-weight:700;font-size:1.05rem;display:inline-block;letter-spacing:0.5px}
+.badge-conflict  {background:#d97706;color:white;padding:6px 20px;border-radius:6px;font-weight:700;font-size:1.05rem;display:inline-block;letter-spacing:0.5px}
+
+/* ── Pipeline stepper ── */
 .stepper-wrap{display:flex;justify-content:space-between;align-items:center;margin:1rem 0 1.5rem 0}
 .step-item{display:flex;flex-direction:column;align-items:center;flex:1;position:relative}
-.step-item:not(:last-child)::after{content:"";position:absolute;top:18px;left:60%;width:80%;height:3px;background:#e0e0e0;z-index:0}
-.step-item.done:not(:last-child)::after{background:#21c354}
-.step-circle{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:1rem;z-index:1;background:#e0e0e0;color:#888}
-.step-circle.done{background:#21c354;color:white}
-.step-label{font-size:0.72rem;margin-top:4px;text-align:center;color:#555;max-width:80px}
-.step-label.done{color:#21c354;font-weight:600}
-.audit-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600}
-.audit-stage{background:#dbeafe;color:#1d4ed8}
+.step-item:not(:last-child)::after{content:"";position:absolute;top:18px;left:60%;width:80%;height:3px;background:#cbd5e1;z-index:0}
+.step-item.done:not(:last-child)::after{background:#16a34a}
+.step-circle{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:1rem;z-index:1;background:#e2e8f0;color:#64748b}
+.step-circle.done{background:#16a34a;color:white}
+.step-label{font-size:0.72rem;margin-top:4px;text-align:center;color:#64748b;max-width:80px}
+.step-label.done{color:#16a34a;font-weight:600}
+
+/* ── Audit trail badges ── */
+.audit-badge{display:inline-block;padding:2px 10px;border-radius:6px;font-size:0.75rem;font-weight:600}
+.audit-stage{background:#dbeafe;color:#1e40af}
 .audit-decision{background:#dcfce7;color:#166534}
-.audit-conflict{background:#fef9c3;color:#854d0e}
+.audit-conflict{background:#fef9c3;color:#92400e}
+
+/* ── Card / info boxes ── */
+.info-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px}
 </style>
 """, unsafe_allow_html=True)
 
@@ -349,9 +363,9 @@ elif st.session_state.pipeline_results:
     # Post-ENISA lifecycle prompt (only for REPORT decisions)
     if final == "REPORT":
         st.markdown(f"""
-        <div style="background:#1e3a5f;border-left:5px solid #3b82f6;border-radius:8px;padding:12px 18px;margin:10px 0">
-          <b style="color:#93c5fd;font-size:0.85rem">{'⚠️ ENISA報告義務が発生しました — 規制ライフサイクルが開始されます' if ja else '⚠️ ENISA reporting obligation triggered — Regulatory lifecycle now active'}</b><br>
-          <span style="color:#e0f2fe;font-size:0.8rem">{'サイドバーの「Compliance」ページで完全な報告後ライフサイクル管理（規制調整・修正・監査保管）を確認できます。' if ja else 'Open the Compliance page (sidebar) to manage the full post-reporting lifecycle: regulatory coordination, remediation governance, audit retention.'}</span>
+        <div style="background:#eff6ff;border-left:5px solid #1e40af;border-radius:8px;padding:12px 18px;margin:10px 0">
+          <b style="color:#1e3a8a;font-size:0.85rem">{'⚠️ ENISA報告義務が発生しました — 規制ライフサイクルが開始されます' if ja else '⚠️ ENISA reporting obligation triggered — Regulatory lifecycle now active'}</b><br>
+          <span style="color:#1e40af;font-size:0.8rem">{'サイドバーの「Compliance」ページで完全な報告後ライフサイクル管理（規制調整・修正・監査保管）を確認できます。' if ja else 'Open the Compliance page (sidebar) to manage the full post-reporting lifecycle: regulatory coordination, remediation governance, audit retention.'}</span>
         </div>""", unsafe_allow_html=True)
 
     st.markdown("---"); st.markdown(t("section_pipeline")); pipeline_stepper(completed=6); st.markdown("---")
