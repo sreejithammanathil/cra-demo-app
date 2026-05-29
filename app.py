@@ -167,6 +167,9 @@ with st.sidebar:
             for r in reversed(log):
                 st.caption(f"`{r['ts']}` {r['scenario']} → **{r['decision']}**")
 
+    st.markdown("---")
+    st.page_link("pages/0_Readiness_Check.py",
+                 label="🛡️ " + ("CRA準備状況評価" if ja else "CRA Readiness Assessment"))
     sidebar_current_run()
     st.markdown("---")
     sidebar_home_button()
@@ -423,6 +426,37 @@ if st.session_state.pipeline_phase == "idle":
                   <div style="font-size:0.72rem;font-weight:600;color:{info['color']}">{d['outcome']}</div>
                 </div>""", unsafe_allow_html=True)
     st.markdown("")
+
+    # ── CRA Readiness Assessment CTA ──
+    ra_col, _ = st.columns([3, 1])
+    with ra_col:
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+            border-radius: 14px;
+            padding: 26px 32px;
+            color: white;
+            margin-bottom: 12px;
+        ">
+            <div style="font-size:1.7rem; margin-bottom:6px;">🛡️</div>
+            <div style="font-size:1.15rem; font-weight:800; margin-bottom:6px;">
+                {'CRA準備状況評価 — 御社は対応できていますか？' if ja
+                 else 'CRA Readiness Assessment — Is your organisation prepared?'}
+            </div>
+            <div style="font-size:0.88rem; color:#bfdbfe; margin-bottom:4px;">
+                {'8問 · 約5分 · パーソナライズされたアクションプランと無料レポート'
+                 if ja else
+                 '8 questions · 5 minutes · Personalised action plan + free report'}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.page_link(
+            "pages/0_Readiness_Check.py",
+            label="🛡️ " + ("CRA準備状況評価を開始する →" if ja
+                            else "Start CRA Readiness Assessment →"),
+        )
+
+    st.markdown("---")
 
 
 # ─────────────────────────────────────────────
