@@ -10,6 +10,7 @@ import plotly.express as px
 
 from mock_data import POST_ENISA_DATA
 from translations import t
+from utils import inject_css, sidebar_current_run, sidebar_home_button
 
 st.set_page_config(
     page_title="Compliance Lifecycle — CRA System",
@@ -19,6 +20,20 @@ st.set_page_config(
 
 if "lang" not in st.session_state:
     st.session_state.lang = "en"
+
+inject_css()
+ja_nav = st.session_state.lang == "ja"
+with st.sidebar:
+    sidebar_current_run()
+    st.markdown("---")
+    st.markdown("##### " + ("ナビゲーション" if ja_nav else "Navigation"))
+    st.page_link("app.py",                label="🏠 " + ("ダッシュボード" if ja_nav else "Dashboard"))
+    st.page_link("pages/1_Detection.py",  label="🔍 " + ("Act 1 — 検出" if ja_nav else "Act 1 — Detection"))
+    st.page_link("pages/2_Decision.py",   label="⚖️ " + ("Act 2 — 判定" if ja_nav else "Act 2 — Decision"))
+    st.page_link("pages/3_Reporting.py",  label="📡 " + ("Act 3 — 報告" if ja_nav else "Act 3 — Reporting"))
+    st.page_link("pages/5_History.py",    label="📚 " + ("履歴" if ja_nav else "History"))
+    st.markdown("---")
+    sidebar_home_button()
 
 lc1, lc2, _ = st.columns([1, 1, 6])
 with lc1:

@@ -7,6 +7,7 @@ import pandas as pd
 
 from mock_data import CVE_SCENARIOS, PRODUCTS, DECISION_RULES
 from translations import t, SCENARIO_JA
+from utils import inject_css, sidebar_current_run, sidebar_home_button
 
 st.set_page_config(
     page_title="History & Scenarios — CRA System",
@@ -14,11 +15,23 @@ st.set_page_config(
     layout="wide"
 )
 
-# Inherit language from session state (shared across pages)
 if "lang" not in st.session_state:
     st.session_state.lang = "en"
 
-# ---- Language toggle (mirrored here so user can switch on this page too) ----
+inject_css()
+ja_nav = st.session_state.lang == "ja"
+with st.sidebar:
+    sidebar_current_run()
+    st.markdown("---")
+    st.markdown("##### " + ("ナビゲーション" if ja_nav else "Navigation"))
+    st.page_link("app.py",                label="🏠 " + ("ダッシュボード" if ja_nav else "Dashboard"))
+    st.page_link("pages/1_Detection.py",  label="🔍 " + ("Act 1 — 検出" if ja_nav else "Act 1 — Detection"))
+    st.page_link("pages/2_Decision.py",   label="⚖️ " + ("Act 2 — 判定" if ja_nav else "Act 2 — Decision"))
+    st.page_link("pages/3_Reporting.py",  label="📡 " + ("Act 3 — 報告" if ja_nav else "Act 3 — Reporting"))
+    st.page_link("pages/4_Compliance.py", label="📋 " + ("コンプライアンス" if ja_nav else "Compliance"))
+    st.markdown("---")
+    sidebar_home_button()
+
 lc1, lc2, _ = st.columns([1, 1, 6])
 with lc1:
     if st.button("🇺🇸 English", use_container_width=True,
