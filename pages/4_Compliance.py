@@ -435,13 +435,22 @@ with tabs[6]:
 
     # Completeness gauge
     fig_gauge = go.Figure(go.Indicator(
-        mode="gauge+number", value=aud["completeness_pct"],
-        title={"text": "証拠パッケージ完全性" if ja else "Evidence Package Completeness (%)"},
-        gauge={"axis":{"range":[0,100]},"bar":{"color":"#3b82f6"},
-               "steps":[{"range":[0,50],"color":"#fee2e2"},{"range":[50,80],"color":"#fef9c3"},{"range":[80,100],"color":"#dcfce7"}],
-               "threshold":{"line":{"color":"black","width":3},"thickness":0.75,"value":100}}
+        mode="gauge",
+        value=aud["completeness_pct"],
+        title={"text": "証拠パッケージ完全性 (%)" if ja else "Evidence Package Completeness (%)"},
+        gauge={
+            "axis": {"range": [0, 100], "tickwidth": 1, "tickcolor": "#94a3b8"},
+            "bar":  {"color": "#3b82f6"},
+            "steps": [
+                {"range": [0,  50], "color": "#fee2e2"},
+                {"range": [50, 80], "color": "#fef9c3"},
+                {"range": [80,100], "color": "#dcfce7"},
+            ],
+            "threshold": {"line": {"color": "black", "width": 3},
+                          "thickness": 0.75, "value": 100},
+        },
     ))
-    fig_gauge.update_layout(height=220, margin=dict(t=40,b=10,l=20,r=20))
+    fig_gauge.update_layout(height=220, margin=dict(t=60, b=10, l=20, r=20))
     _,gcol,_ = st.columns([1,2,1])
     with gcol: st.plotly_chart(fig_gauge, use_container_width=True)
 

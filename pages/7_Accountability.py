@@ -210,49 +210,45 @@ with tab2:
     if not tl:
         st.info("ℹ️ " + ("タイムラインデータがありません。" if ja else "No timeline data available."))
     else:
-        # Visual timeline using HTML
-        items_html = ""
+        # Visual timeline using flexbox (no position:absolute)
         for i, ev in enumerate(tl):
-            is_last    = i == len(tl) - 1
-            actor_bg   = "#dbeafe" if ev["actor_type"] == "Human" else "#dcfce7"
-            actor_clr  = "#1e40af" if ev["actor_type"] == "Human" else "#166534"
-            connector  = "" if is_last else (
-                '<div style="position:absolute;left:17px;top:38px;bottom:-10px;'
-                'width:2px;background:#e2e8f0;z-index:0"></div>'
+            is_last   = i == len(tl) - 1
+            actor_bg  = "#dbeafe" if ev["actor_type"] == "Human" else "#dcfce7"
+            actor_clr = "#1e40af" if ev["actor_type"] == "Human" else "#166534"
+            connector = (
+                ""
+                if is_last
+                else '<div style="width:2px;background:#e2e8f0;flex:1;min-height:16px;margin:3px auto 3px auto"></div>'
             )
-            items_html += f"""
-            <div style="position:relative;padding-left:48px;padding-bottom:18px">
-              {connector}
-              <!-- Circle -->
-              <div style="position:absolute;left:0;top:0;width:36px;height:36px;
-                          border-radius:50%;background:#1e3a8a;color:white;
-                          display:flex;align-items:center;justify-content:center;
-                          font-size:1rem;z-index:1">{ev['icon']}</div>
-              <!-- Content -->
-              <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
-                          padding:10px 14px;margin-left:4px">
+            st.markdown(f"""
+            <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:4px">
+              <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:36px">
+                <div style="width:36px;height:36px;border-radius:50%;background:#1e3a8a;color:white;
+                            display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0">
+                  {ev['icon']}
+                </div>
+                {connector}
+              </div>
+              <div style="flex:1;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
+                          padding:10px 14px;margin-bottom:12px">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
                   <span style="font-size:0.72rem;font-weight:700;color:#1e3a8a;
                                background:#eff6ff;border-radius:10px;padding:1px 8px">
                     Stage {ev['stage']}
                   </span>
                   <span style="font-weight:700;font-size:0.88rem;color:#1e293b">{ev['event']}</span>
-                  <span style="margin-left:auto;font-size:0.72rem;color:#94a3b8">⏱ {ev['timestamp']}</span>
+                  <span style="margin-left:auto;font-size:0.72rem;color:#94a3b8">&#x23F1; {ev['timestamp']}</span>
                 </div>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:0.75rem;color:#6b7280">
                   <span style="background:{actor_bg};color:{actor_clr};border-radius:10px;
                                padding:1px 8px;font-weight:600">
-                    👤 {ev['actor']}
+                    &#128100; {ev['actor']}
                   </span>
-                  <span>🔄 State: <b>{ev['state']}</b></span>
+                  <span>&#x1F504; State: <b>{ev['state']}</b></span>
                 </div>
                 <div style="margin-top:6px;font-size:0.78rem;color:#4b5563">{ev['details']}</div>
               </div>
-            </div>"""
-        st.markdown(
-            f'<div style="padding:8px 0 0 0">{items_html}</div>',
-            unsafe_allow_html=True,
-        )
+            </div>""", unsafe_allow_html=True)
 
         # Timeline table
         st.markdown("---")
