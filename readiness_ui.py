@@ -8,7 +8,6 @@ import plotly.graph_objects as go
 
 from readiness_questions import QUESTIONS, MAX_SCORE
 from readiness_scorer import calculate_score, get_recommendations
-from lead_capture import save_lead
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
@@ -60,14 +59,12 @@ def display_welcome_screen(state_key: str) -> None:
             "🔍 Category-by-category breakdown across 8 compliance areas",
             "⚡ Prioritised action plan with concrete next steps",
             "📚 Bite-sized learning for every area — tailored to J-TEC context",
-            "📋 Optional: free personalised report delivered to your inbox",
         ]
         items_ja = [
             "📊 CRA準備状況の総合スコア（0〜200点）",
             "🔍 8つのコンプライアンス領域にわたるカテゴリ別評価",
             "⚡ 具体的な次のステップを含む優先アクションプラン",
             "📚 J-TECのコンテキストに合わせた各領域の学習コンテンツ",
-            "📋 オプション：無料の個別レポートをメールで受け取る",
         ]
         items = items_ja if st.session_state.get("lang") == "ja" else items_en
         for item in items:
@@ -86,12 +83,6 @@ def display_welcome_screen(state_key: str) -> None:
             st.rerun()
 
     st.markdown("---")
-    st.caption(
-        _t(
-            "ℹ️ All responses are anonymous unless you choose to share your contact details at the end.",
-            "ℹ️ 最後に連絡先を共有することを選択しない限り、すべての回答は匿名です。",
-        )
-    )
 
 
 # ── Single question ────────────────────────────────────────────────────────
@@ -360,64 +351,6 @@ def display_next_steps(state_key: str) -> None:
             st.switch_page("app.py")
 
         st.markdown("")
-
-    # ── Lead capture ─────────────────────────────────────────────────────────
-    st.subheader(_t("📬 Get Your Free CRA Readiness Report", "📬 無料CRA準備状況レポートを受け取る"))
-    st.markdown(_t(
-        "Enter your details below to receive a personalised PDF report with your scores, "
-        "gap analysis, and a step-by-step CRA compliance roadmap — directly in your inbox.",
-        "以下に情報を入力して、スコア・ギャップ分析・ステップバイステップのCRAコンプライアンスロードマップを含む"
-        "パーソナライズされたPDFレポートをメールで受け取ってください。"
-    ))
-
-    if not s.get("lead_submitted"):
-        with st.form(key=f"lead_form_{state_key}"):
-            c1, c2 = st.columns(2)
-            with c1:
-                name = st.text_input(_t("Full Name *", "氏名 *"))
-                company = st.text_input(_t("Company Name *", "会社名 *"))
-                country = st.text_input(_t("Country", "国"), value="Japan")
-            with c2:
-                email = st.text_input(_t("Work Email *", "会社メール *"))
-                role = st.text_input(_t("Your Role (e.g. Compliance Manager)", "役職（例：コンプライアンス担当）"))
-            consent = st.checkbox(
-                _t(
-                    "I agree to be contacted by Geoglyph regarding CRA compliance services.",
-                    "Geoglyphによる CRAコンプライアンスサービスに関するご連絡に同意します。",
-                ),
-                value=False,
-            )
-            submitted = st.form_submit_button(
-                _t("📩 Send My Report", "📩 レポートを受け取る"),
-                type="primary",
-                use_container_width=True,
-            )
-
-            if submitted:
-                if not name or not email or not company:
-                    st.error(_t("Please fill in the required fields (*).",
-                               "必須項目（*）を入力してください。"))
-                else:
-                    result = s.get("score_result", {})
-                    save_lead(
-                        name=name,
-                        email=email,
-                        company=company,
-                        role=role,
-                        country=country,
-                        score_pct=result.get("percentage", 0),
-                        readiness_level=result.get("readiness_level", {}).get("level", ""),
-                        consent=consent,
-                    )
-                    s["lead_submitted"] = True
-                    s["lead_name"] = name
-                    st.rerun()
-    else:
-        name = s.get("lead_name", "")
-        st.success(_t(
-            f"✅ Thank you, {name}! We'll send your personalised CRA Readiness Report within one business day.",
-            f"✅ {name}様、ありがとうございます！1営業日以内に個別のCRA準備状況レポートをお送りします。"
-        ))
 
     # ── Restart ──
     st.markdown("<br>", unsafe_allow_html=True)
