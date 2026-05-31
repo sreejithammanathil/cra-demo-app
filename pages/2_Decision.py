@@ -34,8 +34,9 @@ with st.sidebar:
     st.page_link("app.py",                label="🏠 " + ("ダッシュボード" if ja else "Dashboard"))
     st.page_link("pages/1_Detection.py",  label="🔍 " + ("Act 1 — 検出" if ja else "Act 1 — Detection"))
     st.page_link("pages/3_Reporting.py",  label="📡 " + ("Act 3 — 報告" if ja else "Act 3 — Reporting"))
-    st.page_link("pages/4_Compliance.py", label="📋 " + ("コンプライアンス" if ja else "Compliance"))
-    st.page_link("pages/5_History.py",    label="📚 " + ("履歴" if ja else "History"))
+    st.page_link("pages/4_Compliance.py",     label="📋 " + ("コンプライアンス" if ja else "Compliance"))
+    st.page_link("pages/5_History.py",         label="📚 " + ("履歴" if ja else "History"))
+    st.page_link("pages/7_Accountability.py",  label="🔍 " + ("説明責任" if ja else "Accountability"))
     sidebar_readiness_score()
     st.markdown("---")
     sidebar_home_button()
@@ -413,13 +414,16 @@ st.markdown("---")
 
 # ── Next step navigation ──
 st.markdown("### " + ("次のステップ" if ja else "Next Step"))
-nav1, nav2 = st.columns(2)
+nav1, nav2, nav3 = st.columns(3)
 with nav1:
     st.page_link("pages/1_Detection.py",
                  label="← " + ("Act 1: 検出へ戻る" if ja else "Back to Act 1: Detection"))
 with nav2:
     st.page_link("pages/3_Reporting.py",
                  label="📡 " + ("Act 3: 報告・ダウンロードへ →" if ja else "Act 3: Reporting & Downloads →"))
+with nav3:
+    st.page_link("pages/7_Accountability.py",
+                 label="🔍 " + ("説明責任レコードを表示 →" if ja else "View Accountability Record →"))
 
 st.markdown(f"<div style='text-align:center;font-size:11px;color:#aaa;margin-top:18px;"
             f"border-top:1px solid #eee;padding-top:10px;line-height:1.7;'>{t('legal_declaration')}</div>",

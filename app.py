@@ -172,6 +172,8 @@ with st.sidebar:
     sidebar_readiness_score()
     st.page_link("pages/0_Readiness_Check.py",
                  label="🛡️ " + ("CRA準備状況評価" if ja else "CRA Readiness Assessment"))
+    st.page_link("pages/7_Accountability.py",
+                 label="🔍 " + ("説明責任レコード" if ja else "Accountability Record"))
     sidebar_current_run()
     st.markdown("---")
     sidebar_home_button()

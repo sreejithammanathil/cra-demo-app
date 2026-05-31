@@ -31,7 +31,8 @@ with st.sidebar:
     st.page_link("pages/1_Detection.py",  label="🔍 " + ("Act 1 — 検出" if ja_nav else "Act 1 — Detection"))
     st.page_link("pages/2_Decision.py",   label="⚖️ " + ("Act 2 — 判定" if ja_nav else "Act 2 — Decision"))
     st.page_link("pages/3_Reporting.py",  label="📡 " + ("Act 3 — 報告" if ja_nav else "Act 3 — Reporting"))
-    st.page_link("pages/5_History.py",    label="📚 " + ("履歴" if ja_nav else "History"))
+    st.page_link("pages/5_History.py",         label="📚 " + ("履歴" if ja_nav else "History"))
+    st.page_link("pages/7_Accountability.py",  label="🔍 " + ("説明責任" if ja_nav else "Accountability"))
     st.markdown("---")
     sidebar_home_button()
 
